@@ -1,0 +1,10 @@
+Glyph OCR uses PaddleOCR-VL-1.6 and PP-DocLayoutV3 by PaddlePaddle (Apache-2.0), llama.cpp (MIT), PDFium (BSD-style licenses), and ONNX Runtime (MIT).
+Full licenses and third-party notices are in licenses/.
+Model weights are not bundled. The application downloads pinned, SHA-256 verified files from the official Hugging Face repositories.
+The layout graph is generated from the Transformers Apache-2.0 implementation and references the unchanged official Safetensors weights externally.
+chat-template.jinja adapts PaddlePaddle's Apache-2.0 template to accept image_url content.
+https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6-GGUF
+https://huggingface.co/PaddlePaddle/PP-DocLayoutV3_safetensors
+https://github.com/ggml-org/llama.cpp
+https://github.com/bblanchon/pdfium-binaries
+https://github.com/microsoft/onnxruntime

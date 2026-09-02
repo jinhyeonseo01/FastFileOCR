@@ -1,0 +1,22 @@
+{{- '<|begin_of_sentence|>' -}}
+{%- for message in messages -%}
+  {%- if message['role'] == 'user' -%}
+    {{- 'User: ' -}}
+    {%- if message['content'] is string -%}
+      {{- message['content'] -}}
+    {%- else -%}
+      {%- for content in message['content'] -%}
+        {%- if content['type'] == 'image' or content['type'] == 'image_url' -%}
+          {{- '<|IMAGE_START|><|IMAGE_PLACEHOLDER|><|IMAGE_END|>' -}}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- for content in message['content'] -%}
+        {%- if content['type'] == 'text' -%}{{- content['text'] -}}{%- endif -%}
+      {%- endfor -%}
+    {%- endif -%}
+    {{- '\n' -}}
+  {%- elif message['role'] == 'assistant' -%}
+    {{- 'Assistant:\n' + message['content'] + '</s>' -}}
+  {%- endif -%}
+{%- endfor -%}
+{%- if add_generation_prompt -%}{{- 'Assistant:\n' -}}{%- endif -%}

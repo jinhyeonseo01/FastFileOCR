@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Glyph OCR",
+  "version": "2.0.0",
+  "identifier": "com.glyph.localocr",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://127.0.0.1:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Glyph OCR — Local document OCR",
+        "width": 1440,
+        "height": 920,
+        "minWidth": 1050,
+        "minHeight": 700
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'; base-uri 'self'"
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": [
+      "nsis"
+    ],
+    "shortDescription": "Offline document OCR with PaddleOCR-VL-1.6",
+    "category": "Productivity",
+    "icon": [
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "resources": {
+      "resources/runtime/": "resources/runtime/",
+      "resources/layout/": "resources/layout/",
+      "resources/licenses/": "resources/licenses/",
+      "resources/chat-template.jinja": "resources/chat-template.jinja",
+      "resources/NOTICE.txt": "resources/NOTICE.txt"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "offlineInstaller"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "Korean",
+          "English"
+        ],
+        "displayLanguageSelector": true,
+        "compression": "lzma"
+      }
+    }
+  }
+}

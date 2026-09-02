@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "repository": "PaddlePaddle/PaddleOCR-VL-1.6-GGUF",
+  "revision": "511b09642bb324401f15f97cc23bc67e8f0a291d",
+  "files": [
+    {
+      "name": "PaddleOCR-VL-1.6-GGUF.gguf",
+      "bytes": 935769056,
+      "sha256": "f3ae46ec885050acf4b3d31944431e1fd90d50664fb09126af4a3c050ba14ee8"
+    },
+    {
+      "name": "PaddleOCR-VL-1.6-GGUF-mmproj.gguf",
+      "bytes": 881770560,
+      "sha256": "204d757d7610d9b3faab10d506d69e5b244e32bf765e2bab2d0167e65e0a058a"
+    },
+    {
+      "name": "model.safetensors",
+      "bytes": 133270468,
+      "sha256": "5ea422c6cc5fe759a47e1357c35639b58173508e025a3131cbe4b6ac59e2b85e",
+      "layout": true,
+      "repository": "PaddlePaddle/PP-DocLayoutV3_safetensors",
+      "revision": "97d101e6db2642e162a1d05392d1b0231c91033e"
+    }
+  ]
+}

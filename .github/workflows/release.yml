@@ -1,0 +1,72 @@
+name: Windows release
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  installer:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install locked Rust toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Set application version from tag
+        run: node scripts/set-version.mjs $env:GITHUB_REF_NAME
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Prepare native engines and layout graph
+        run: npm run resources:prepare
+      - name: Verify source and tests
+        run: |
+          npm run check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build installer EXE
+        run: npm run installer
+      - name: Upload installer build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Glyph-OCR-${{ github.ref_name }}-windows-x64
+          path: src-tauri/target/release/bundle/inno/*
+          if-no-files-found: error
+          compression-level: 0
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $assets = @(Get-ChildItem -LiteralPath src-tauri/target/release/bundle/inno -File | ForEach-Object FullName)
+          gh release view $tag --json id 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --verify-tag --title "Glyph OCR $tag" --generate-notes @assets
+          } else {
+            gh release upload $tag --clobber @assets
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
