@@ -213,6 +213,22 @@ impl Store {
         }
         atomic_write(&path, &data)
     }
+    /// Remove list entries together; original/imported assets remain available for recovery.
+    pub fn remove_pages(&mut self, ids: &[String]) -> Result<usize> {
+        for page_id in ids {
+            self.page(page_id)?;
+        }
+        let previous = self.project.clone();
+        self.project.pages.retain(|page| !ids.contains(&page.id));
+        let removed = previous.pages.len() - self.project.pages.len();
+        if removed > 0 {
+            if let Err(error) = self.save() {
+                self.project = previous;
+                return Err(error);
+            }
+        }
+        Ok(removed)
+    }
     pub fn page(&self, page_id: &str) -> Result<&Page> {
         self.project
             .pages
@@ -244,6 +260,42 @@ impl Store {
 mod tests {
     use super::*;
 
+    #[test]
+    fn batch_removal_keeps_other_pages_and_shared_sources_and_validates_all_ids() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = Store::create(dir.path(), "Documents".into()).unwrap();
+        fs::write(store.root.join("sources/shared.pdf"), b"source").unwrap();
+        for number in 1..=3 {
+            store.project.pages.push(Page::new(
+                format!("Page {number}"),
+                "sources/shared.pdf".into(),
+                number,
+                format!("pages/{number}.png"),
+                format!("pages/{number}-thumb.jpg"),
+                10,
+                10,
+            ));
+        }
+        store.save().unwrap();
+        let ids: Vec<_> = store.project.pages.iter().map(|p| p.id.clone()).collect();
+        assert!(store
+            .remove_pages(&[ids[0].clone(), "unknown".into()])
+            .is_err());
+        assert_eq!(store.project.pages.len(), 3);
+        assert_eq!(
+            store
+                .remove_pages(&[ids[0].clone(), ids[2].clone(), ids[0].clone()])
+                .unwrap(),
+            2
+        );
+        let reopened = Store::open(store.root.clone()).unwrap();
+        assert_eq!(reopened.project.pages.len(), 1);
+        assert_eq!(reopened.project.pages[0].id, ids[1]);
+        assert_eq!(
+            fs::read(store.root.join("sources/shared.pdf")).unwrap(),
+            b"source"
+        );
+    }
     #[test]
     fn region_detection_defaults_preserve_saved_opt_out() {
         assert!(Settings::default().use_layout);

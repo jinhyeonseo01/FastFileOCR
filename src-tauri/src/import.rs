@@ -2,7 +2,7 @@ use crate::store::{err, id, Page, Result, Store};
 use image::{codecs::jpeg::JpegEncoder, DynamicImage, GenericImageView, ImageDecoder, ImageReader};
 use pdfium_render::prelude::*;
 use std::{fs, path::Path};
-fn save_jpeg(image: &DynamicImage, path: &Path) -> Result<()> {
+fn opaque_rgb(image: &DynamicImage) -> image::RgbImage {
     let mut rgb = image.to_rgb8();
     if image.color().has_alpha() {
         for (pixel, rgba) in rgb.pixels_mut().zip(image.to_rgba8().pixels()) {
@@ -12,8 +12,11 @@ fn save_jpeg(image: &DynamicImage, path: &Path) -> Result<()> {
             }
         }
     }
+    rgb
+}
+fn save_jpeg(image: &DynamicImage, path: &Path) -> Result<()> {
     JpegEncoder::new_with_quality(fs::File::create(path).map_err(err)?, 95)
-        .encode_image(&rgb)
+        .encode_image(&opaque_rgb(image))
         .map_err(err)
 }
 fn add_image(
@@ -24,7 +27,7 @@ fn add_image(
     number: u32,
 ) -> Result<()> {
     let uid = id();
-    let image_path = format!("pages/{uid}.jpg");
+    let image_path = format!("pages/{uid}.png");
     let thumb_path = format!("pages/{uid}-thumb.jpg");
     let (width, height) = image.dimensions();
     // Keep the entire page and its aspect ratio; never crop or tile.
@@ -33,7 +36,10 @@ fn add_image(
     } else {
         image
     };
-    save_jpeg(&scan, &store.root.join(&image_path))?;
+    // Preserve text edges in OCR input; only the UI thumbnail is lossy.
+    opaque_rgb(&scan)
+        .save_with_format(store.root.join(&image_path), image::ImageFormat::Png)
+        .map_err(err)?;
     save_jpeg(&scan.thumbnail(420, 420), &store.root.join(&thumb_path))?;
     let (width, height) = scan.dimensions();
     store.project.pages.push(Page::new(
@@ -146,10 +152,45 @@ pub fn import_clipboard(store: &mut Store) -> Result<()> {
     )
 }
 
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests {
     use super::*;
     #[test]
+    fn imported_scan_preserves_pixels_and_flattens_alpha_on_white() {
+        let temporary = tempfile::tempdir().unwrap();
+        let mut store = Store::create(temporary.path(), "Image import".into()).unwrap();
+        let input = temporary.path().join("capture.png");
+        let image = image::RgbaImage::from_fn(39, 23, |x, y| {
+            image::Rgba([
+                (x * 6) as u8,
+                (y * 11) as u8,
+                29,
+                if x < 3 { 0 } else { 255 },
+            ])
+        });
+        image.save(&input).unwrap();
+        import_file(&mut store, &input, Path::new("no-resources")).unwrap();
+        let page = &store.project.pages[0];
+        let scan = image::open(store.root.join(&page.image)).unwrap().to_rgb8();
+        assert_eq!(scan.dimensions(), image.dimensions());
+        for (x, y, pixel) in scan.enumerate_pixels() {
+            let original = image.get_pixel(x, y);
+            let expected = if x < 3 {
+                [255; 3]
+            } else {
+                [original[0], original[1], original[2]]
+            };
+            assert_eq!(pixel.0, expected);
+        }
+        assert_eq!(
+            fs::read(store.root.join(&page.source)).unwrap(),
+            fs::read(input).unwrap()
+        );
+    }
+
+    #[test]
+    #[cfg(windows)]
+    #[ignore = "requires prepared PDFium; run npm run test:resources"]
     fn imports_more_than_one_pdf_in_the_same_process() {
         let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let resources = root.join("resources");

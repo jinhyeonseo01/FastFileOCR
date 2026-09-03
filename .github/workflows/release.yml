@@ -52,17 +52,13 @@ jobs:
         run: npm run resources:prepare
       - name: Verify source and tests
         run: |
-          npm run locales:check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm test
+          npm run test:resources
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build NSIS installer EXE
         run: npm run installer
-      - name: Verify installer data lifecycle
+      - name: Verify installed resources and data lifecycle
         run: npm run installer:test
       - name: Upload installer build
         uses: actions/upload-artifact@v4

@@ -125,7 +125,7 @@
   "modelDownloadHint": "モデルは初回使用時にHugging Faceから取得します。文書は外部に送信されません。",
   "autoUpdates": "起動時に更新を確認",
   "repository": "GitHubリポジトリ",
-  "repositoryHint": "owner/repository形式で指定。リリースビルドには公開元が自動設定されます。",
+  "repositoryHint": "このアプリのリリースリポジトリから更新を確認します。",
   "checkNow": "今すぐ確認",
   "currentVersion": "インストール済み {version}",
   "updateAvailable": "バージョン{version}が利用できます",
@@ -262,7 +262,6 @@
   "webviewStartError": "同梱のMicrosoft WebView2インストーラーを起動できませんでした。",
   "webviewInstallError": "Microsoft WebView2のインストールに失敗しました。Windowsを再起動して再試行してください。",
   "installerAppRunning": "インストールやデータ設定の変更前にFastFileOCRを終了してください。",
-  "repositoryPlaceholder": "所有者/リポジトリ",
   "abstract": "要旨",
   "algorithm": "アルゴリズム",
   "aside_text": "補足テキスト",
@@ -289,6 +288,8 @@
   "runtimeUnavailable": "{0}には対応するGPUとドライバーが必要です。自動またはCPUを選択するか、グラフィックドライバーを更新してください。",
   "runtimeUnsafeArchive": "GPUエンジンのアーカイブに無効なファイルが含まれています。",
   "runtimeCacheError": "GPUエンジンのフォルダーを安全に更新できません。データフォルダーを確認して再試行してください。",
-  "runtimeIncomplete": "GPUエンジンに必要なファイルがありません。再試行してください。",
-  "runtimeDownloadHint": "GPUエンジンは初回使用時にダウンロードします。Vulkanは約34 MB、CUDAは約537 MBです。中断後の再開やアプリ更新後の再利用に対応しています。"
+  "runtimeIncomplete": "GPUエンジンに必要なファイルがありません: {0}。アプリを再インストールして再試行してください。",
+  "runtimeDownloadHint": "GPUエンジンは初回使用時にダウンロードします。Vulkanは約34 MB、CUDAは約537 MBです。中断後の再開やアプリ更新後の再利用に対応しています。",
+  "removeSelected": "選択したページを削除 (Delete)",
+  "pagesRemoved": "一覧から{count}ページを削除しました。"
 }

@@ -4,9 +4,7 @@ use crate::{
     state::*,
     store::{err, inside, Result, Settings, Store},
 };
-use base64::Engine as _;
 use std::{
-    fs,
     path::{Path, PathBuf},
     sync::{atomic::Ordering, Arc},
 };
@@ -140,9 +138,12 @@ pub(crate) fn edit_page(state: State<AppState>, page_id: String, markdown: Strin
 pub(crate) fn remove_page(state: State<AppState>, page_id: String) -> Result<()> {
     let _busy = begin(&state)?;
     let mut store = state.store.lock().map_err(err)?;
-    store.page(&page_id)?;
-    store.project.pages.retain(|p| p.id != page_id);
-    store.save()
+    store.remove_pages(&[page_id]).map(|_| ())
+}
+#[tauri::command]
+pub(crate) fn remove_pages(state: State<AppState>, page_ids: Vec<String>) -> Result<usize> {
+    let _busy = begin(&state)?;
+    state.store.lock().map_err(err)?.remove_pages(&page_ids)
 }
 #[tauri::command]
 pub(crate) async fn preview(app: tauri::AppHandle, page_id: String) -> Result<String> {
@@ -152,10 +153,7 @@ pub(crate) async fn preview(app: tauri::AppHandle, page_id: String) -> Result<St
             let store = state.store.lock().map_err(err)?;
             inside(&store.root, &store.page(&page_id)?.image)?
         };
-        Ok(format!(
-            "data:image/jpeg;base64,{}",
-            base64::engine::general_purpose::STANDARD.encode(fs::read(path).map_err(err)?)
-        ))
+        crate::images::data_url(&path)
     })
     .await
     .map_err(err)?
@@ -308,13 +306,7 @@ pub(crate) fn update_operation(app: tauri::AppHandle, download: bool) -> Result<
                 let _ = app.emit("app-update", p);
             })
         } else {
-            let repository = state
-                .preferences
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .github_repository
-                .clone();
-            state.updater.check(&repository)
+            state.updater.check(crate::updates::default_repository())
         };
         if let Err(e) = result {
             let mut p = state

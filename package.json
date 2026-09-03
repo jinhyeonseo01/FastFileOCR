@@ -11,11 +11,18 @@
     "resources:prepare": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build/resources.ps1 && node scripts/build/prepare-nsis.mjs",
     "resources:check": "node scripts/build/check-resources.mjs",
     "installer": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build/installer.ps1",
-    "test": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "check": "npm run build && cargo check --manifest-path src-tauri/Cargo.toml",
+    "test": "npm run test:ui && npm run test:tools && npm run test:rust && npm run test:installer-helper",
+    "check": "npm run format:check && npm run locales:check && npm run versions:check && npm run build && npm test",
     "format": "prettier --write src locate scripts/**/*.mjs README*.md docs/**/*.md",
     "locales:check": "node scripts/dev/check-locales.mjs",
-    "installer:test": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/test-installer-data.ps1"
+    "installer:test": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/test-installer-data.ps1",
+    "test:ui": "node --experimental-strip-types --test src/domain/*.test.ts",
+    "test:tools": "node --test scripts/build/*.test.mjs",
+    "test:rust": "node scripts/dev/test-rust.mjs",
+    "test:installer-helper": "cargo test --locked --manifest-path installer/helper/Cargo.toml --target-dir .cache/installer-helper-target",
+    "test:resources": "cargo test --locked --manifest-path src-tauri/Cargo.toml import::tests::imports_more_than_one_pdf_in_the_same_process -- --ignored --exact",
+    "format:check": "prettier --check src locate scripts/**/*.mjs README*.md docs/**/*.md CONTRIBUTING.md package.json && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && cargo fmt --manifest-path installer/helper/Cargo.toml -- --check",
+    "versions:check": "node scripts/dev/check-versions.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",
@@ -43,5 +50,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/jinhyeonseo01/FastFileOCR.git"
+  },
+  "engines": {
+    "node": ">=22.18.0"
   }
 }

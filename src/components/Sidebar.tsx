@@ -8,6 +8,7 @@ import {
   Search,
   Settings2,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import type { WorkspaceController } from "../hooks/useWorkspace";
 import { IconButton } from "./controls";
@@ -98,6 +99,13 @@ export function Sidebar({ w }: { w: WorkspaceController }) {
             >
               {t("clearSelection")}
             </button>
+            <IconButton
+              title={t("removeSelected")}
+              disabled={w.working || !w.scanIds.length}
+              onClick={() => w.removePages()}
+            >
+              <Trash2 size={15} />
+            </IconButton>
           </div>
         </>
       )}

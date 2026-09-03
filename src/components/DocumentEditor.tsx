@@ -162,7 +162,7 @@ export function DocumentEditor({ w }: { w: WorkspaceController }) {
             <IconButton
               title={t("remove")}
               disabled={w.working}
-              onClick={() => w.command("remove_page", { pageId: page?.id })}
+              onClick={() => page && w.removePages([page.id])}
             >
               <Trash2 size={15} />
             </IconButton>

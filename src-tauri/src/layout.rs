@@ -178,15 +178,20 @@ fn postprocess(
         .collect())
 }
 pub fn crop(image: &image::DynamicImage, bbox: [f32; 4]) -> image::DynamicImage {
+    // Scale context with the short edge; limit neighboring text in large regions.
+    let short_edge = (bbox[2] - bbox[0]).min(bbox[3] - bbox[1]).max(0.0);
+    let padding = (short_edge * 0.08).ceil().clamp(4.0, 32.0) as u32;
     let x = (bbox[0].floor().max(0.0) as u32)
-        .saturating_sub(2)
+        .saturating_sub(padding)
         .min(image.width() - 1);
     let y = (bbox[1].floor().max(0.0) as u32)
-        .saturating_sub(2)
+        .saturating_sub(padding)
         .min(image.height() - 1);
-    let right = (bbox[2].ceil() as u32).saturating_add(2).min(image.width());
+    let right = (bbox[2].ceil() as u32)
+        .saturating_add(padding)
+        .min(image.width());
     let bottom = (bbox[3].ceil() as u32)
-        .saturating_add(2)
+        .saturating_add(padding)
         .min(image.height());
     image.crop_imm(
         x,
@@ -205,6 +210,28 @@ pub fn contains(outer: &Region, inner: &Region) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn crop_retains_context_scales_with_text_and_clamps_to_page() {
+        let image = image::DynamicImage::ImageRgb8(image::RgbImage::from_fn(1000, 1000, |x, y| {
+            image::Rgb([(x % 256) as u8, (y % 256) as u8, 42])
+        }));
+        let small = crop(&image, [100.0, 100.0, 200.0, 120.0]);
+        let large = crop(&image, [100.0, 100.0, 600.0, 300.0]);
+        assert!(small.width() > 104 && small.height() > 24);
+        assert!(large.width() - 500 > small.width() - 100);
+        assert!(large.width() - 500 <= 64);
+        let edge = crop(&image, [0.0, 0.0, 1000.0, 1000.0]);
+        assert_eq!(edge.to_rgb8(), image.to_rgb8());
+        let corner = crop(&image, [998.0, 998.0, 1000.0, 1000.0]);
+        assert!(corner.width() > 2);
+        assert_eq!(
+            corner
+                .to_rgb8()
+                .get_pixel(corner.width() - 1, corner.height() - 1),
+            image.to_rgb8().get_pixel(999, 999)
+        );
+    }
+
     #[test]
     fn coordinates_and_order_follow_detector_not_text_order() {
         let labels = std::collections::HashMap::from([("0".into(), "text".into())]);

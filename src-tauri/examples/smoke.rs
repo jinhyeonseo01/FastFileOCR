@@ -11,6 +11,11 @@ fn main() {
         std::process::exit(1);
     }
 }
+fn resources() -> PathBuf {
+    std::env::var_os("FASTFILEOCR_SMOKE_RESOURCES")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources"))
+}
 fn execute() -> Result<(), String> {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     if args.first().is_some_and(|s| s == "--prepare-runtime") {
@@ -28,7 +33,7 @@ fn execute() -> Result<(), String> {
             "Hardware: {:?}",
             fastfileocr_core::runtimes::hardware::Hardware::detect()
         );
-        let directory = runtime.ensure(&base.join("resources"), device, |p| {
+        let directory = runtime.ensure(&resources(), device, |p| {
             println!("{} {} {}/{}", p.kind, p.status, p.downloaded, p.total);
             if p.status == "downloading" && cancel_after.is_some_and(|n| p.downloaded >= n) {
                 runtime.cancel();
@@ -83,9 +88,9 @@ fn execute() -> Result<(), String> {
     }
     let input = args
         .first()
-        .ok_or("usage: smoke INPUT [auto|cpu|vulkan|cuda] [text|document|table]")?;
+        .ok_or("usage: smoke INPUT [auto|cpu|vulkan|cuda] [text|document|table] [--layout]")?;
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let resources = root.join("resources");
+    let resources = resources();
     let mut store = Store::create(&root.join("../outputs/smoke"), "OCR validation".into())?;
     let added = import_file(&mut store, &PathBuf::from(input), &resources)?;
     println!("Imported {added} page(s).");
@@ -93,7 +98,7 @@ fn execute() -> Result<(), String> {
         device: args.get(1).cloned().unwrap_or("auto".into()),
         mode: args.get(2).cloned().unwrap_or("text".into()),
         max_tokens: 4096,
-        use_layout: false, // This example validates whole-page OCR.
+        use_layout: args.iter().any(|arg| arg == "--layout"),
         ..Settings::default()
     };
     let downloads = fastfileocr_core::download::Downloads::new(
@@ -119,15 +124,35 @@ fn execute() -> Result<(), String> {
             |p| println!("Runtime: {} {} / {}", p.status, p.downloaded, p.total),
         )?
     );
+    let mut detector = if settings.use_layout {
+        Some(fastfileocr_core::layout::Detector::load(
+            &resources,
+            downloads.directory(),
+        )?)
+    } else {
+        None
+    };
     for index in 0..store.project.pages.len() {
         let page = store.project.pages[index].clone();
-        let (text, warning) = engine.recognize(store.root.join(&page.image), &settings)?;
-        println!("PAGE {}: {}\nWARNING: {:?}", index + 1, text, warning);
+        let result = fastfileocr_core::recognition::recognize_page(
+            &engine,
+            &store.root.join(&page.image),
+            &settings,
+            detector.as_mut(),
+            |_| {},
+        )?;
+        println!(
+            "PAGE {}: {}\nREGIONS: {}\nWARNING: {:?}",
+            index + 1,
+            result.raw,
+            result.regions.len(),
+            result.warning
+        );
         let p = store.page_mut(&page.id)?;
-        p.raw_text = text.clone();
-        let (normalized, w) = fastfileocr_core::table::normalize(&text, &settings.mode);
-        p.edit(normalized);
-        p.warning = warning.or(w);
+        p.raw_text = result.raw;
+        p.edit(result.markdown);
+        p.regions = result.regions;
+        p.warning = result.warning;
         p.status = "done".into();
         p.recognized_with = Some(settings.clone());
         store.save_result(&page.id)?;

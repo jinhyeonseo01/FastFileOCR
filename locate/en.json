@@ -125,7 +125,7 @@
   "modelDownloadHint": "Models download from Hugging Face on first use. Your files stay on this device.",
   "autoUpdates": "Check for updates on startup",
   "repository": "GitHub repository",
-  "repositoryHint": "Use owner/repository. Official release builds include their source repository automatically.",
+  "repositoryHint": "Updates are checked from this application's release repository.",
   "checkNow": "Check now",
   "currentVersion": "Installed version {version}",
   "updateAvailable": "Version {version} is available",
@@ -262,7 +262,6 @@
   "webviewStartError": "Could not start the included Microsoft WebView2 installer.",
   "webviewInstallError": "Microsoft WebView2 installation failed. Restart Windows and run this installer again.",
   "installerAppRunning": "Close FastFileOCR before installing or changing its data settings.",
-  "repositoryPlaceholder": "owner/repository",
   "abstract": "Abstract",
   "algorithm": "Algorithm",
   "aside_text": "Side text",
@@ -289,6 +288,8 @@
   "runtimeUnavailable": "{0} requires a compatible GPU and driver. Choose Automatic or CPU, or update the graphics driver.",
   "runtimeUnsafeArchive": "The GPU engine archive contains invalid files.",
   "runtimeCacheError": "The GPU engine folder could not be safely updated. Check the data folder and try again.",
-  "runtimeIncomplete": "The GPU engine is missing required files. Please retry.",
-  "runtimeDownloadHint": "GPU engines download on first use: Vulkan about 34 MB, CUDA about 537 MB. Downloads can resume and are retained across app updates."
+  "runtimeIncomplete": "Required GPU engine files are missing: {0}. Reinstall the app and try again.",
+  "runtimeDownloadHint": "GPU engines download on first use: Vulkan about 34 MB, CUDA about 537 MB. Downloads can resume and are retained across app updates.",
+  "removeSelected": "Remove selected pages (Delete)",
+  "pagesRemoved": "Removed {count} pages from the list."
 }
