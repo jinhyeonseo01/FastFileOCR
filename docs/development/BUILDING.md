@@ -18,7 +18,7 @@ The resource preparation step downloads pinned CPU/Vulkan/CUDA llama.cpp engines
 npm run installer
 ```
 
-Output: src-tauri/target/release/bundle/inno/FastFileOCR_2.0.0_x64-setup.exe, plus a SHA-256 file and build-info.json. The installer includes WebView2 for computers that do not already have it. The default build is unsigned.
+Output: src-tauri/target/release/bundle/inno/FastFileOCR_0.1.0_x64-setup.exe, plus a SHA-256 file and build-info.json. The installer includes WebView2 for computers that do not already have it. The default build is unsigned.
 
 ## Validation and formatting
 
@@ -41,8 +41,8 @@ Connect a GitHub remote, then push a vMAJOR.MINOR.PATCH tag on a commit that con
 
 ```powershell
 git push -u origin main
-git tag v1.0.0
-git push origin v1.0.0
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
 The workflow supplies FASTFILEOCR_GITHUB_REPOSITORY from github.repository. For a local release build, set it to the actual owner/repository before building. No owner is hardcoded. The settings UI also permits configuring the repository.

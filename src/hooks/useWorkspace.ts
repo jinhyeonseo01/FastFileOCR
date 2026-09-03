@@ -1,3 +1,4 @@
+import { version } from "../../package.json";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -20,7 +21,7 @@ const defaults: Settings = {
   instructions: "",
   device: "auto",
   maxTokens: 8192,
-  useLayout: false,
+  useLayout: true,
 };
 const empty: Snapshot = {
   project: { id: "", name: "", settings: defaults, pages: [] },
@@ -47,7 +48,7 @@ const empty: Snapshot = {
   update: {
     status: "idle",
     version: "",
-    currentVersion: "2.0.0",
+    currentVersion: version,
     downloaded: 0,
     total: 0,
   },

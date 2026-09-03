@@ -31,8 +31,11 @@ pub struct Settings {
     pub instructions: String,
     pub device: String,
     pub max_tokens: u32,
-    #[serde(default)]
+    #[serde(default = "default_use_layout")]
     pub use_layout: bool,
+}
+fn default_use_layout() -> bool {
+    true
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -43,7 +46,7 @@ impl Default for Settings {
             instructions: String::new(),
             device: "auto".into(),
             max_tokens: 8192,
-            use_layout: false,
+            use_layout: default_use_layout(),
         }
     }
 }
@@ -240,6 +243,23 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn region_detection_defaults_preserve_saved_opt_out() {
+        assert!(Settings::default().use_layout);
+        let mut saved = serde_json::to_value(Settings::default()).unwrap();
+        saved.as_object_mut().unwrap().remove("useLayout");
+        let legacy: Settings = serde_json::from_value(saved.clone()).unwrap();
+        assert!(legacy.use_layout);
+
+        saved["useLayout"] = serde_json::json!(false);
+        let opted_out: Settings = serde_json::from_value(saved).unwrap();
+        assert!(!opted_out.use_layout);
+        let reopened: Settings =
+            serde_json::from_slice(&serde_json::to_vec(&opted_out).unwrap()).unwrap();
+        assert!(!reopened.use_layout);
+    }
+
     #[test]
     fn restores_interrupted_queue_without_losing_completed_text() {
         let dir = tempfile::tempdir().unwrap();

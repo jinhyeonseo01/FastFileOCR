@@ -6,7 +6,7 @@ FastFileOCR uses a Rust core and Tauri 2 with React. Files, document state, infe
 
 Files / clipboard / drag-and-drop → page images → verified model files → model adapter → local llama.cpp → saved results.
 
-Whole-page recognition is the default. When the user enables region detection, PP-DocLayoutV3 supplies bounding boxes and reading order, then PaddleOCR-VL recognizes each crop. Both raw and normalized output are retained. If no regions are detected, the app falls back to whole-page OCR. A detector can miss individual regions; the original page and rescan controls remain available for review.
+Region detection is enabled by default for new settings; a saved opt-out is retained. The user can disable it for whole-page OCR. When enabled, PP-DocLayoutV3 supplies bounding boxes and reading order, then PaddleOCR-VL recognizes each crop. Both raw and normalized output are retained. If no regions are detected, the app falls back to whole-page OCR. A detector can miss individual regions; the original page and rescan controls remain available for review.
 
 The layout model runs through ONNX Runtime on CPU. Its graph is exported from the pinned Transformers implementation and references official Safetensors weights by byte offset. The graph contains no trained weights. Export validation compares PyTorch and ONNX Runtime outputs. Runtime installations require no Python.
 

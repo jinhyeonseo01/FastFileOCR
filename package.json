@@ -1,6 +1,6 @@
 {
   "name": "fastfileocr",
-  "version": "2.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,7 +13,7 @@
     "installer": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build/installer.ps1",
     "test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "check": "npm run build && cargo check --manifest-path src-tauri/Cargo.toml",
-    "format": "prettier --write src locate scripts/**/*.mjs README.md docs/**/*.md",
+    "format": "prettier --write src locate scripts/**/*.mjs README*.md docs/**/*.md",
     "locales:check": "node scripts/dev/check-locales.mjs"
   },
   "dependencies": {
