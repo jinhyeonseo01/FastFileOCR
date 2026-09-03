@@ -1,60 +1,42 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/.vinext/
-/out/
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
+# Dependencies and generated frontend output
+/node_modules/
 /dist/
-/.wrangler/
-/outputs/
-/work/
-/.cache/
 *.tsbuildinfo
 
+# Native build outputs and prepared third-party assets
 /src-tauri/target/
 /src-tauri/gen/
-/src-tauri/resources/models/
 /src-tauri/resources/runtime/
+/src-tauri/resources/layout/
 /src-tauri/resources/licenses/
 /src-tauri/resources/bundle-manifest.json
-/workspace/
 
-/output/
-/.playwright-cli/
-/.openai/
-
-/src-tauri/resources/layout/
+# Model weights and partial downloads must never be committed
 *.gguf
 *.safetensors
 *.onnx
 *.part
+
+# Local workspaces, test output and build caches
+/.cache/
+/workspace/
+/work/
+/outputs/
+/output/
+/.playwright-cli/
+/.openai/
+
+# Local environment, credentials and signing materials
+.env
+.env.*
+!.env.example
+*.pem
+*.pfx
+*.key
+
+# Logs and OS metadata
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+Desktop.ini

@@ -1,0 +1,7 @@
+{
+  "comic": "OCR:\nRead this comic page. Transcribe all visible speech balloons, narration boxes, captions and sound effects in panel reading order. Separate panels and speakers when visually clear. Preserve original language and punctuation. Do not describe the artwork, translate, invent names, or add dialogue. Follow any user-specified reading direction. Output Markdown.",
+  "table": "Table Recognition:",
+  "formula": "Formula Recognition:",
+  "document": "OCR:\nPreserve the document reading order, headings, paragraphs, lists and tables. Output Markdown. Transcribe visible text without translating or inventing content.",
+  "text": "OCR:"
+}

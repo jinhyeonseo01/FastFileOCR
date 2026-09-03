@@ -25,7 +25,7 @@ pub fn otsl_html(raw: &str) -> Result<String, String> {
         let tag = TOKENS
             .iter()
             .find(|t| rest.starts_with(**t))
-            .ok_or("표 형식에 알 수 없는 토큰이 있습니다.")?;
+            .ok_or(crate::i18n::text("tableToken"))?;
         rest = &rest[tag.len()..];
         let end = TOKENS
             .iter()
@@ -36,14 +36,14 @@ pub fn otsl_html(raw: &str) -> Result<String, String> {
         rest = &rest[end..];
         if *tag == "<nl>" {
             if !value.is_empty() {
-                return Err("표 행 밖의 텍스트를 원문에서 확인하세요.".into());
+                return Err(crate::i18n::text("tableTextOutside").into());
             }
             if !row.is_empty() {
                 rows.push(std::mem::take(&mut row));
             }
         } else {
             if *tag != "<fcel>" && !value.is_empty() {
-                return Err("병합 셀의 텍스트를 원문에서 확인하세요.".into());
+                return Err(crate::i18n::text("tableMergedText").into());
             }
             row.push((*tag, value));
         }
@@ -51,9 +51,12 @@ pub fn otsl_html(raw: &str) -> Result<String, String> {
     if !row.is_empty() {
         rows.push(row);
     }
-    let width = rows.first().map(Vec::len).ok_or("빈 표입니다.")?;
+    let width = rows
+        .first()
+        .map(Vec::len)
+        .ok_or(crate::i18n::text("tableEmpty"))?;
     if width == 0 || rows.iter().any(|r| r.len() != width) || width * rows.len() > 10000 {
-        return Err("표의 행·열 구조가 불완전합니다. 원문을 보존했습니다.".into());
+        return Err(crate::i18n::text("tableIncomplete").into());
     }
     let mut cells: Vec<Cell> = vec![];
     let mut owners = vec![vec![None; width]; rows.len()];
@@ -74,10 +77,10 @@ pub fn otsl_html(raw: &str) -> Result<String, String> {
                     let owner = c
                         .checked_sub(1)
                         .and_then(|x| owners[r][x])
-                        .ok_or("표의 가로 병합이 올바르지 않습니다.")?;
+                        .ok_or(crate::i18n::text("tableHMerge"))?;
                     let cell: &mut Cell = &mut cells[owner];
                     if cell.row != r {
-                        return Err("표의 가로 병합 위치가 올바르지 않습니다.".into());
+                        return Err(crate::i18n::text("tableHPosition").into());
                     }
                     cell.column_span = c - cell.column + 1;
                     owner
@@ -86,10 +89,10 @@ pub fn otsl_html(raw: &str) -> Result<String, String> {
                     let owner = r
                         .checked_sub(1)
                         .and_then(|y| owners[y][c])
-                        .ok_or("표의 세로 병합이 올바르지 않습니다.")?;
+                        .ok_or(crate::i18n::text("tableVMerge"))?;
                     let cell: &mut Cell = &mut cells[owner];
                     if cell.column != c {
-                        return Err("표의 세로 병합 위치가 올바르지 않습니다.".into());
+                        return Err(crate::i18n::text("tableVPosition").into());
                     }
                     cell.row_span = r - cell.row + 1;
                     owner
@@ -98,7 +101,7 @@ pub fn otsl_html(raw: &str) -> Result<String, String> {
                     let left = c.checked_sub(1).and_then(|x| owners[r][x]);
                     let above = r.checked_sub(1).and_then(|y| owners[y][c]);
                     if left.is_none() || left != above {
-                        return Err("표의 복합 병합이 올바르지 않습니다.".into());
+                        return Err(crate::i18n::text("tableCrossMerge").into());
                     }
                     left.unwrap()
                 }
@@ -115,7 +118,7 @@ pub fn otsl_html(raw: &str) -> Result<String, String> {
                 .take(cell.column_span)
                 .any(|x| *x != Some(index))
             {
-                return Err("병합 셀 구조가 서로 겹칩니다.".into());
+                return Err(crate::i18n::text("tableOverlap").into());
             }
         }
     }

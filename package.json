@@ -1,5 +1,5 @@
 {
-  "name": "glyph-local-ocr",
+  "name": "fastfileocr",
   "version": "2.0.0",
   "private": true,
   "type": "module",
@@ -8,11 +8,13 @@
     "build": "tsc --noEmit && vite build",
     "desktop": "tauri dev",
     "tauri": "tauri",
-    "resources:prepare": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-resources.ps1",
-    "resources:check": "node scripts/check-resources.mjs",
-    "installer": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-installer.ps1",
+    "resources:prepare": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build/resources.ps1",
+    "resources:check": "node scripts/build/check-resources.mjs",
+    "installer": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build/installer.ps1",
     "test": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "check": "npm run build && cargo check --manifest-path src-tauri/Cargo.toml"
+    "check": "npm run build && cargo check --manifest-path src-tauri/Cargo.toml",
+    "format": "prettier --write src locate scripts/**/*.mjs README.md docs/**/*.md",
+    "locales:check": "node scripts/dev/check-locales.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",
@@ -31,7 +33,10 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
+    "prettier": "3.6.2",
     "typescript": "5.9.3",
     "vite": "^8.2.2"
-  }
+  },
+  "description": "Simple / Fast / Accurate — Rust OCR powered by PaddleOCR-VL 1.6",
+  "license": "CC-BY-4.0"
 }

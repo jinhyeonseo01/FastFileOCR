@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Glyph OCR",
+  "productName": "FastFileOCR",
   "version": "2.0.0",
   "identifier": "com.glyph.localocr",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Glyph OCR — Local document OCR",
+        "title": "FastFileOCR",
         "width": 1440,
         "height": 920,
         "minWidth": 1050,
@@ -25,9 +25,6 @@
   },
   "bundle": {
     "active": false,
-    "targets": [
-      "nsis"
-    ],
     "shortDescription": "Offline document OCR with PaddleOCR-VL-1.6",
     "category": "Productivity",
     "icon": [
@@ -44,15 +41,6 @@
     "windows": {
       "webviewInstallMode": {
         "type": "offlineInstaller"
-      },
-      "nsis": {
-        "installMode": "currentUser",
-        "languages": [
-          "Korean",
-          "English"
-        ],
-        "displayLanguageSelector": true,
-        "compression": "lzma"
       }
     }
   }

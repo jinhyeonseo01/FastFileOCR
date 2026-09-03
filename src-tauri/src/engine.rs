@@ -100,45 +100,53 @@ impl Engine {
         models: &Path,
         log_dir: &Path,
         device: &str,
+        model_id: &str,
     ) -> Result<String> {
         self.stop();
         let variants = if device == "auto" {
-            vec!["vulkan", "cpu"]
+            vec!["cuda", "vulkan", "cpu"]
         } else {
             vec![device]
         };
         let mut failures = Vec::new();
         for variant in variants {
             if self.cancelled() {
-                return Err("취소됨".into());
+                return Err(crate::i18n::text("cancelledOperation").into());
             }
-            match self.launch(resources, models, log_dir, variant) {
-                Ok(()) => {
-                    return Ok(if failures.is_empty() {
-                        variant.into()
-                    } else {
-                        "cpu (GPU 시작 실패 후 전환)".into()
-                    })
-                }
+            match self.launch(resources, models, log_dir, variant, model_id) {
+                Ok(()) => return Ok(variant.into()),
                 Err(e) => {
                     self.stop();
                     failures.push(format!("{variant}: {e}"));
                 }
             }
         }
-        Err(format!(
-            "OCR 엔진을 시작하지 못했습니다. {}\n로그: {}",
-            failures.join("\n"),
-            log_dir.display()
+        Err(crate::i18n::f(
+            "engineStartError",
+            &[
+                (failures.join("\n")).to_string(),
+                (log_dir.display()).to_string(),
+            ],
         ))
     }
-    fn launch(&self, resources: &Path, models: &Path, log_dir: &Path, device: &str) -> Result<()> {
+    fn launch(
+        &self,
+        resources: &Path,
+        models: &Path,
+        log_dir: &Path,
+        device: &str,
+        model_id: &str,
+    ) -> Result<()> {
         let binary = resources.join(format!("runtime/{device}/llama-server.exe"));
-        let model = models.join("PaddleOCR-VL-1.6-GGUF.gguf");
-        let projector = models.join("PaddleOCR-VL-1.6-GGUF-mmproj.gguf");
+        let runtime = crate::models::get(model_id)?.runtime(resources, models);
+        let model = runtime.weights;
+        let projector = runtime.projector;
         for path in [&binary, &model, &projector] {
             if !path.is_file() {
-                return Err(format!("동봉 파일을 찾을 수 없습니다: {}", path.display()));
+                return Err(crate::i18n::f(
+                    "missingResource",
+                    &[(path.display()).to_string()],
+                ));
             }
         }
         let listener = TcpListener::bind(("127.0.0.1", 0)).map_err(err)?;
@@ -159,16 +167,16 @@ impl Engine {
             .arg("--api-key")
             .arg(&key)
             .arg("--alias")
-            .arg("paddleocr")
+            .arg(runtime.alias)
             .arg("--ctx-size")
-            .arg("24576")
+            .arg(runtime.context.to_string())
             .arg("--parallel")
             .arg("1")
             .arg("--n-gpu-layers")
             .arg(if device == "cpu" { "0" } else { "99" })
             .arg("--jinja")
             .arg("--chat-template-file")
-            .arg(resources.join("chat-template.jinja"))
+            .arg(runtime.template)
             .arg("--temp")
             .arg("0")
             .arg("--no-webui")
@@ -187,7 +195,7 @@ impl Engine {
         {
             let mut slot = self.server.lock().map_err(err)?;
             if self.cancelled() {
-                return Err("취소됨".into());
+                return Err(crate::i18n::text("cancelledOperation").into());
             }
             let mut child = cmd.spawn().map_err(err)?;
             #[cfg(windows)]
@@ -196,7 +204,7 @@ impl Engine {
                 Err(e) => {
                     let _ = child.kill();
                     let _ = child.wait();
-                    return Err(format!("프로세스 수명 관리 실패: {e}"));
+                    return Err(crate::i18n::f("processLifetime", &[(e).to_string()]));
                 }
             };
             *slot = Some(Server {
@@ -216,13 +224,13 @@ impl Engine {
         let deadline = Instant::now() + Duration::from_secs(180);
         loop {
             if self.cancelled() {
-                return Err("취소됨".into());
+                return Err(crate::i18n::text("cancelledOperation").into());
             }
             {
                 let mut slot = self.server.lock().map_err(err)?;
-                let server = slot.as_mut().ok_or("엔진이 종료되었습니다.")?;
+                let server = slot.as_mut().ok_or(crate::i18n::text("engineStopped"))?;
                 if let Some(code) = server.child.try_wait().map_err(err)? {
-                    return Err(format!("프로세스 종료 ({code}). 로그 파일을 확인하세요."));
+                    return Err(crate::i18n::f("processExit", &[(code).to_string()]));
                 }
             }
             if let Ok(response) = client
@@ -235,7 +243,7 @@ impl Engine {
                 }
             }
             if Instant::now() > deadline {
-                return Err("모델 로딩 제한 시간(180초)을 초과했습니다.".into());
+                return Err(crate::i18n::text("loadTimeout").into());
             }
             thread::sleep(Duration::from_millis(250));
         }
@@ -246,16 +254,16 @@ impl Engine {
         settings: &Settings,
     ) -> Result<(String, Option<String>)> {
         if self.cancelled() {
-            return Err("취소됨".into());
+            return Err(crate::i18n::text("cancelledOperation").into());
         }
         let (port, key) = {
             let slot = self.server.lock().map_err(err)?;
-            let server = slot.as_ref().ok_or("OCR 엔진이 실행 중이 아닙니다.")?;
+            let server = slot.as_ref().ok_or(crate::i18n::text("engineNotRunning"))?;
             (server.port, server.key.clone())
         };
         let data = base64::engine::general_purpose::STANDARD.encode(fs::read(image).map_err(err)?);
         let payload = json!({
-            "model": "paddleocr", "temperature": 0, "max_tokens": settings.max_tokens,
+            "model": "ocr", "temperature": 0, "max_tokens": crate::models::get(&settings.model_id)?.max_tokens(settings),
             "stream": false, "messages": [{"role":"user","content":[
                 {"type":"image_url","image_url":{"url":format!("data:image/jpeg;base64,{data}")}},
                 {"type":"text","text":settings.prompt()}
@@ -276,23 +284,24 @@ impl Engine {
         let status = response.status();
         let body: Value = response.json().map_err(err)?;
         if !status.is_success() {
-            return Err(format!(
-                "OCR 오류 ({status}): {}",
-                body["error"]["message"]
-                    .as_str()
-                    .unwrap_or("런타임 응답 오류")
+            return Err(crate::i18n::f(
+                "ocrError",
+                &[
+                    (status).to_string(),
+                    (body["error"]["message"].as_str().unwrap_or("runtime_error")).to_string(),
+                ],
             ));
         }
         let choice = &body["choices"][0];
         let text = choice["message"]["content"]
             .as_str()
-            .ok_or("OCR 응답에 텍스트가 없습니다.")?
+            .ok_or(crate::i18n::text("emptyResponse"))?
             .to_string();
         let reason = choice["finish_reason"].as_str().unwrap_or("");
         let warning = if reason == "length" {
-            Some("출력 한도에 도달했습니다. 일부 내용이 누락됐을 수 있습니다. 토큰 한도를 늘려 다시 스캔하세요.".into())
+            Some(crate::i18n::text("outputTruncated").into())
         } else if text.trim().is_empty() {
-            Some("인식된 문자가 없습니다. 원본과 인식 모드를 확인하세요.".into())
+            Some(crate::i18n::text("emptyRecognition").into())
         } else {
             None
         };

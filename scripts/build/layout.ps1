@@ -1,6 +1,6 @@
 param([string]$Python = 'python')
 $ErrorActionPreference = 'Stop'
-$root = Split-Path $PSScriptRoot -Parent
+$root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 Set-Location -LiteralPath $root
 $venv = Join-Path $root '.cache/layout-venv/Scripts/python.exe'
 if (!(Test-Path -LiteralPath $venv)) {
@@ -9,7 +9,7 @@ if (!(Test-Path -LiteralPath $venv)) {
 }
 & $venv -m pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cpu
 if ($LASTEXITCODE -ne 0) { throw 'Build-time PyTorch installation failed.' }
-& $venv -m pip install -r scripts/layout-requirements.txt
+& $venv -m pip install -r scripts/build/layout-requirements.txt
 if ($LASTEXITCODE -ne 0) { throw 'Layout exporter dependency installation failed.' }
-& $venv scripts/export-layout.py
+& $venv scripts/build/export-layout.py
 if ($LASTEXITCODE -ne 0) { throw 'Layout graph export or numerical validation failed.' }

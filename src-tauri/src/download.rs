@@ -24,14 +24,16 @@ pub struct ModelFile {
     pub repository: Option<String>,
     pub revision: Option<String>,
 }
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct Manifest {
     pub repository: String,
     pub revision: String,
     pub files: Vec<ModelFile>,
 }
 pub fn manifest() -> Manifest {
-    serde_json::from_str(include_str!("../models.json")).expect("Invalid built-in model manifest")
+    crate::models::get(crate::models::DEFAULT_MODEL)
+        .unwrap()
+        .manifest()
 }
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,13 +47,19 @@ pub struct Progress {
 }
 pub struct Downloads {
     root: PathBuf,
+    spec: Manifest,
     state: Mutex<Progress>,
     // 0: running, 1: pause requested, 2: cancel requested. Partial files survive all three.
     control: AtomicU8,
 }
 impl Downloads {
     pub fn new(base: &Path, include_layout: bool) -> Self {
-        let mut spec = manifest();
+        Self::for_model(base, crate::models::DEFAULT_MODEL, include_layout)
+            .expect("Default model exists")
+    }
+    pub fn for_model(base: &Path, model_id: &str, include_layout: bool) -> Result<Self> {
+        let full_spec = crate::models::get(model_id)?.manifest();
+        let mut spec = full_spec.clone();
         spec.files.retain(|f| !f.layout || include_layout);
         let root = base.join(&spec.revision);
         let total = spec.files.iter().map(|f| f.bytes).sum();
@@ -75,8 +83,9 @@ impl Downloads {
         } else {
             "idle"
         };
-        Self {
+        Ok(Self {
             root,
+            spec: full_spec,
             state: Mutex::new(Progress {
                 status: status.into(),
                 file: String::new(),
@@ -86,7 +95,7 @@ impl Downloads {
                 error: None,
             }),
             control: AtomicU8::new(0),
-        }
+        })
     }
     pub fn directory(&self) -> &Path {
         &self.root
@@ -132,7 +141,7 @@ impl Downloads {
             }
         }
         if self.control.load(Ordering::SeqCst) == 2 {
-            return Err("모델 다운로드를 중단했습니다. 다음 스캔 때 이어받습니다.".into());
+            return Err(crate::i18n::text("downloadCancelled").into());
         }
         Ok(())
     }
@@ -172,7 +181,7 @@ impl Downloads {
     }
     fn ensure_inner(&self, include_layout: bool, notify: &impl Fn(Progress)) -> Result<()> {
         fs::create_dir_all(&self.root).map_err(err)?;
-        let mut spec = manifest();
+        let mut spec = self.spec.clone();
         spec.files.retain(|f| !f.layout || include_layout);
         {
             let mut state = self.state.lock().map_err(err)?;
@@ -193,7 +202,7 @@ impl Downloads {
         let client = Client::builder()
             .connect_timeout(Duration::from_secs(15))
             .timeout(Duration::from_secs(30))
-            .user_agent(concat!("Glyph-OCR/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("FastFileOCR/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(err)?;
         let mut complete = 0;
@@ -251,9 +260,7 @@ impl Downloads {
                             failures + 1
                         };
                         if failures >= 3 {
-                            return Err(format!(
-                                "모델 다운로드 실패: {e}\n연결을 확인하고 이어받기를 누르세요."
-                            ));
+                            return Err(crate::i18n::f("downloadFailed", &[(e).to_string()]));
                         }
                         // Bounded backoff remains responsive to pause and cancel.
                         for _ in 0..10 * failures {
@@ -273,7 +280,7 @@ impl Downloads {
             if !self.valid(&partial, model, notify)? {
                 fs::remove_file(&partial).map_err(err)?;
                 self.update("error", None, Some(complete), 0);
-                return Err("모델 파일의 SHA-256 검증에 실패했습니다. 다시 스캔하면 해당 파일을 새로 받습니다.".into());
+                return Err(crate::i18n::text("modelHashMismatch").into());
             }
             fs::rename(&partial, &target).map_err(err)?;
             complete += model.bytes;
@@ -339,7 +346,7 @@ impl Downloads {
                 break;
             }
             if received + n as u64 > total {
-                return Err("서버가 예상 크기를 초과한 모델 파일을 반환했습니다.".into());
+                return Err(crate::i18n::text("modelTooLarge").into());
             }
             file.write_all(&buffer[..n]).map_err(err)?;
             received += n as u64;
@@ -360,7 +367,7 @@ impl Downloads {
         );
         notify(self.snapshot());
         if received != expected {
-            return Err("연결이 완료 전에 끊어졌습니다.".into());
+            return Err(crate::i18n::text("downloadInterrupted").into());
         }
         Ok(())
     }
@@ -376,13 +383,17 @@ fn resume_offset(status: StatusCode, range: Option<&str>, offset: u64, total: u6
         return Ok(0);
     } // Server ignores Range: replace, never append a full response.
     if status != StatusCode::PARTIAL_CONTENT {
-        return Err(format!("다운로드 서버 응답: {status}"));
+        return Err(crate::i18n::f("downloadStatus", &[(status).to_string()]));
     }
     let range = range
         .and_then(|s| s.strip_prefix("bytes "))
-        .ok_or("Content-Range 헤더가 없습니다.")?;
-    let (span, length) = range.split_once('/').ok_or("잘못된 Content-Range입니다.")?;
-    let (start, end) = span.split_once('-').ok_or("잘못된 다운로드 범위입니다.")?;
+        .ok_or(crate::i18n::text("missingRange"))?;
+    let (span, length) = range
+        .split_once('/')
+        .ok_or(crate::i18n::text("invalidRange"))?;
+    let (start, end) = span
+        .split_once('-')
+        .ok_or(crate::i18n::text("invalidRangeSpan"))?;
     let start = start.parse::<u64>().map_err(err)?;
     let end = end.parse::<u64>().map_err(err)?;
     if start != offset
@@ -390,7 +401,7 @@ fn resume_offset(status: StatusCode, range: Option<&str>, offset: u64, total: u6
         || end < start
         || length.parse::<u64>().map_err(err)? != total
     {
-        return Err("다운로드 이어받기 범위가 일치하지 않습니다.".into());
+        return Err(crate::i18n::text("rangeMismatch").into());
     }
     Ok(offset)
 }

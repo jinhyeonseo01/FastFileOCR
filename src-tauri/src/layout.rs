@@ -65,7 +65,7 @@ impl Detector {
             .try_extract_tensor::<f32>()
             .map_err(err)?;
         if shape.len() != 3 || shape[0] != 1 {
-            return Err("영역 탐지 출력 형식이 올바르지 않습니다.".into());
+            return Err(crate::i18n::text("layoutShape").into());
         }
         let queries = shape[1] as usize;
         let classes = shape[2] as usize;
@@ -100,7 +100,7 @@ fn postprocess(
         || boxes.len() != queries * 4
         || order.len() != queries * queries
     {
-        return Err("영역 탐지 텐서 크기가 올바르지 않습니다.".into());
+        return Err(crate::i18n::text("layoutTensor").into());
     }
     // Official PP-DocLayoutV3 pairwise reading-order vote: triu + complement(transpose).tril.
     let votes = (0..queries)

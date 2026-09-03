@@ -1,7 +1,7 @@
 param([switch]$SkipLayoutExport)
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$root = Split-Path $PSScriptRoot -Parent
+$root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $resources = Join-Path $root 'src-tauri/resources'
 $cache = Join-Path $root '.cache/bundle'
 New-Item -ItemType Directory -Force -Path $cache,"$resources/runtime/cpu","$resources/runtime/vulkan","$resources/runtime/pdfium","$resources/licenses" | Out-Null
@@ -36,6 +36,21 @@ foreach ($variant in @('cpu','vulkan')) {
   if ($LASTEXITCODE -ne 0) { throw "llama.cpp extraction failed." }
   Get-ChildItem -LiteralPath "$cache/$variant" -Recurse -File | Where-Object { $_.Extension -eq '.dll' -or $_.Name -eq 'llama-server.exe' } | ForEach-Object { Copy-Asset $_.FullName (Join-Path "$resources/runtime/$variant" $_.Name) }
 }
+
+# CUDA sidecar and its runtime are pinned to the same llama.cpp release.
+New-Item -ItemType Directory -Force -Path "$resources/runtime/cuda","$cache/cuda","$cache/cudart" | Out-Null
+$cudaName = "llama-$version-bin-win-cuda-13.3-x64.zip"
+Fetch-Checked "https://github.com/ggml-org/llama.cpp/releases/download/$version/$cudaName" "$cache/$cudaName" '23549ccc00b6a18d74348e95d4789f7e96c9efb11cf6e3f1b185baef34d7449f'
+$cudartName = 'cudart-llama-bin-win-cuda-13.3-x64.zip'
+Fetch-Checked "https://github.com/ggml-org/llama.cpp/releases/download/$version/$cudartName" "$cache/$cudartName" '1462a050eb4c684921ba51dcc4cc488a036674c3e73e9945ee705b854808d03e'
+tar -xf "$cache/$cudaName" -C "$cache/cuda"
+if ($LASTEXITCODE -ne 0) { throw 'CUDA sidecar extraction failed.' }
+tar -xf "$cache/$cudartName" -C "$cache/cudart"
+if ($LASTEXITCODE -ne 0) { throw 'CUDA runtime extraction failed.' }
+foreach ($folder in @('cuda','cudart')) {
+  Get-ChildItem -LiteralPath "$cache/$folder" -Recurse -File | Where-Object { $_.Extension -eq '.dll' -or $_.Name -eq 'llama-server.exe' } | ForEach-Object { Copy-Asset $_.FullName "$resources/runtime/cuda/$($_.Name)" }
+}
+
 Fetch-Checked 'https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/8035/pdfium-win-x64.tgz' "$cache/pdfium.tgz" '61513d611ad200a383456140739be77d156f1e3a2eef22bd89f6c3bda79bdd41'
 New-Item -ItemType Directory -Force -Path "$cache/pdfium" | Out-Null
 tar -xzf "$cache/pdfium.tgz" -C "$cache/pdfium"
@@ -47,11 +62,12 @@ if (Test-Path -LiteralPath "$cache/pdfium/licenses") {
   Get-ChildItem -LiteralPath "$cache/pdfium/licenses" -File | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination "$resources/licenses/pdfium-third-party/" -Force }
 }
 Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/ggml-org/llama.cpp/$version/LICENSE" -OutFile "$resources/licenses/llama.cpp-MIT.txt"
+Invoke-WebRequest -UseBasicParsing "https://docs.nvidia.com/cuda/eula/index.html" -OutFile "$resources/licenses/NVIDIA-CUDA-EULA.html"
 Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/LICENSE' -OutFile "$resources/licenses/PaddleOCR-Apache-2.0.txt"
 
 
 # Only graph metadata is packaged. Model weights are downloaded by the application.
-if (!$SkipLayoutExport) { & (Join-Path $PSScriptRoot 'prepare-layout.ps1') }
+if (!$SkipLayoutExport) { & (Join-Path $PSScriptRoot 'layout.ps1') }
 Fetch-Checked 'https://github.com/microsoft/onnxruntime/releases/download/v1.24.4/onnxruntime-win-x64-1.24.4.zip' "$cache/onnxruntime.zip" 'd2319fddfb6ea4db99ccc4b60c85c517bcd855721f5daa6a06d40d7cb2ee2357'
 New-Item -ItemType Directory -Force -Path "$cache/onnxruntime","$resources/runtime/onnxruntime" | Out-Null
 tar -xf "$cache/onnxruntime.zip" -C "$cache/onnxruntime"
@@ -78,7 +94,7 @@ $redist = Get-ChildItem -LiteralPath "$vsRoot/VC/Redist/MSVC" -Directory |
 if (!$redist) { throw 'MSVC x64 redistributable CRT directory was not found.' }
 New-Item -ItemType Directory -Force -Path "$resources/runtime/msvc" | Out-Null
 foreach ($dll in (Get-ChildItem -LiteralPath $redist.FullName -File -Filter '*.dll')) {
-  foreach ($variant in @('msvc','cpu','vulkan','onnxruntime')) { Copy-Asset $dll.FullName "$resources/runtime/$variant/$($dll.Name)" }
+  foreach ($variant in @('msvc','cpu','vulkan','cuda','onnxruntime')) { Copy-Asset $dll.FullName "$resources/runtime/$variant/$($dll.Name)" }
 }
 Copy-Item -LiteralPath "$cache/cpu/LICENSE-LLVM-OpenMP" -Destination "$resources/licenses/LLVM-OpenMP.txt" -Force
 @'

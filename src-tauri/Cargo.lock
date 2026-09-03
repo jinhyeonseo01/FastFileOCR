@@ -1567,6 +1567,7 @@ dependencies = [
  "pulldown-cmark",
  "reqwest 0.12.28",
  "scraper",
+ "semver",
  "serde",
  "serde_json",
  "sha2",

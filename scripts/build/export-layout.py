@@ -10,7 +10,7 @@ import shutil
 import struct
 import sys
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 CACHE = ROOT / ".cache" / "layout-export"
 CACHE.mkdir(parents=True, exist_ok=True)
 os.environ["HF_HOME"] = str(ROOT / ".cache" / "hf")

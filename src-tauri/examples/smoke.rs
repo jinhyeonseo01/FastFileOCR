@@ -57,7 +57,8 @@ fn execute() -> Result<(), String> {
             &resources,
             downloads.directory(),
             &store.root.join("logs"),
-            &settings.device
+            &settings.device,
+            &settings.model_id
         )?
     );
     for index in 0..store.project.pages.len() {

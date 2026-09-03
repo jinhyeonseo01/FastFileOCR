@@ -35,6 +35,7 @@ fn add_image(
     };
     save_jpeg(&scan, &store.root.join(&image_path))?;
     save_jpeg(&scan.thumbnail(420, 420), &store.root.join(&thumb_path))?;
+    let (width, height) = scan.dimensions();
     store.project.pages.push(Page::new(
         name, source, number, image_path, thumb_path, width, height,
     ));
@@ -42,7 +43,7 @@ fn add_image(
 }
 pub fn import_file(store: &mut Store, path: &Path, resources: &Path) -> Result<usize> {
     if store.project.pages.len() >= 1000 {
-        return Err("작업당 최대 1,000페이지입니다. 새 작업을 만드세요.".into());
+        return Err(crate::i18n::text("pageLimit").into());
     }
     let extension = path
         .extension()
@@ -50,7 +51,7 @@ pub fn import_file(store: &mut Store, path: &Path, resources: &Path) -> Result<u
         .unwrap_or("")
         .to_lowercase();
     if !["pdf", "png", "jpg", "jpeg", "webp", "bmp"].contains(&extension.as_str()) {
-        return Err("PDF, PNG, JPG, WEBP, BMP 파일을 추가하세요.".into());
+        return Err(crate::i18n::text("unsupportedFile").into());
     }
     let metadata = fs::metadata(path).map_err(err)?;
     let limit = if extension == "pdf" {
@@ -59,7 +60,7 @@ pub fn import_file(store: &mut Store, path: &Path, resources: &Path) -> Result<u
         100 * 1024 * 1024
     };
     if !metadata.is_file() || metadata.len() > limit {
-        return Err("파일이 너무 큽니다. 이미지 최대 100MB, PDF 최대 1GB입니다.".into());
+        return Err(crate::i18n::text("fileTooLarge").into());
     }
     let name = path
         .file_name()
@@ -70,16 +71,18 @@ pub fn import_file(store: &mut Store, path: &Path, resources: &Path) -> Result<u
     fs::copy(path, store.root.join(&source)).map_err(err)?;
     let count = store.project.pages.len();
     if extension == "pdf" {
-        let pdfium = Pdfium::new(
-            Pdfium::bind_to_library(resources.join("runtime/pdfium/pdfium.dll")).map_err(err)?,
-        );
+        static PDF_BINDING_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = PDF_BINDING_LOCK.lock().map_err(err)?;
+        let pdfium = match Pdfium::bind_to_library(resources.join("runtime/pdfium/pdfium.dll")) {
+            Ok(bindings) => Pdfium::new(bindings),
+            Err(PdfiumError::PdfiumLibraryBindingsAlreadyInitialized) => Pdfium::default(),
+            Err(error) => return Err(err(error)),
+        };
         let doc = pdfium
             .load_pdf_from_file(&store.root.join(&source), None)
-            .map_err(|e| {
-                format!("PDF를 열지 못했습니다. 암호화된 PDF는 암호를 해제한 뒤 추가하세요: {e}")
-            })?;
+            .map_err(|e| crate::i18n::f("pdfOpenError", &[(e).to_string()]))?;
         if count + doc.pages().len() as usize > 1000 {
-            return Err("작업당 최대 1,000페이지입니다.".into());
+            return Err(crate::i18n::text("pageLimitShort").into());
         }
         for (index, page) in doc.pages().iter().enumerate() {
             let image = page
@@ -119,20 +122,42 @@ pub fn import_file(store: &mut Store, path: &Path, resources: &Path) -> Result<u
 }
 pub fn import_clipboard(store: &mut Store) -> Result<()> {
     if store.project.pages.len() >= 1000 {
-        return Err("작업당 최대 1,000페이지입니다.".into());
+        return Err(crate::i18n::text("pageLimitShort").into());
     }
     let mut clipboard = arboard::Clipboard::new().map_err(err)?;
     let image = clipboard
         .get_image()
-        .map_err(|_| "클립보드에 이미지가 없습니다. 캡처를 복사한 뒤 다시 시도하세요.")?;
+        .map_err(|_| crate::i18n::text("clipboardEmpty"))?;
     let buffer = image::RgbaImage::from_raw(
         image.width as u32,
         image.height as u32,
         image.bytes.into_owned(),
     )
-    .ok_or("클립보드 이미지를 읽지 못했습니다.")?;
+    .ok_or(crate::i18n::text("clipboardInvalid"))?;
     let source = format!("sources/{}.png", id());
     let image = DynamicImage::ImageRgba8(buffer);
     image.save(store.root.join(&source)).map_err(err)?;
-    add_image(store, image, "클립보드 캡처".into(), source, 1)
+    add_image(
+        store,
+        image,
+        crate::i18n::translated("clipboardName"),
+        source,
+        1,
+    )
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::*;
+    #[test]
+    fn imports_more_than_one_pdf_in_the_same_process() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let resources = root.join("resources");
+        let fixture = root.join("../docs/assets/sample-invoice.pdf");
+        let temporary = tempfile::tempdir().unwrap();
+        let mut store = Store::create(temporary.path(), "PDF import".into()).unwrap();
+        assert_eq!(import_file(&mut store, &fixture, &resources).unwrap(), 2);
+        assert_eq!(import_file(&mut store, &fixture, &resources).unwrap(), 2);
+        assert_eq!(store.project.pages.len(), 4);
+    }
 }

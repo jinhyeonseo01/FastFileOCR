@@ -1,0 +1,19 @@
+FastFileOCR
+Simple / Fast / Accurate
+
+Copyright (c) 2026 FastFileOCR contributors.
+
+Unless otherwise noted, original project code and documentation are licensed
+under the Creative Commons Attribution 4.0 International license (CC BY 4.0).
+The license text is included in LICENSE:
+https://creativecommons.org/licenses/by/4.0/
+
+For attribution, identify FastFileOCR and its contributors, retain applicable
+copyright and license notices, link to the license, and indicate modifications.
+
+Third-party code, adapted upstream files, models, libraries, and runtime
+components retain their respective licenses and notices. CC BY 4.0 does not
+replace those licenses. See src-tauri/resources/NOTICE.txt in the repository
+or resources/NOTICE.txt and resources/licenses/ in the installed application.
+
+User-imported documents and OCR results are not licensed by this project.

@@ -23,6 +23,10 @@ pub fn id() -> String {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
+    #[serde(default = "crate::models::default_model")]
+    pub model_id: String,
+    #[serde(default)]
+    pub model_options: std::collections::BTreeMap<String, serde_json::Value>,
     pub mode: String,
     pub instructions: String,
     pub device: String,
@@ -33,6 +37,8 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            model_id: crate::models::default_model(),
+            model_options: Default::default(),
             mode: "document".into(),
             instructions: String::new(),
             device: "auto".into(),
@@ -43,33 +49,12 @@ impl Default for Settings {
 }
 impl Settings {
     pub fn validate(&self) -> Result<()> {
-        if !["text", "document", "table", "formula", "comic"].contains(&self.mode.as_str()) {
-            return Err("지원하지 않는 인식 모드입니다.".into());
-        }
-        if !["auto", "cpu", "vulkan"].contains(&self.device.as_str()) {
-            return Err("지원하지 않는 장치입니다.".into());
-        }
-        if !(512..=16384).contains(&self.max_tokens) {
-            return Err("출력 토큰은 512~16384여야 합니다.".into());
-        }
-        if self.instructions.chars().count() > 4000 {
-            return Err("지침은 4,000자 이내로 입력하세요.".into());
-        }
-        Ok(())
+        crate::models::get(&self.model_id)?.validate(self)
     }
     pub fn prompt(&self) -> String {
-        let base = match self.mode.as_str() {
-            "comic" => "OCR:\nRead this comic page. Transcribe all visible speech balloons, narration boxes, captions and sound effects in panel reading order. Separate panels and speakers when visually clear. Preserve original language and punctuation. Do not describe the artwork, translate, invent names, or add dialogue. Follow any user-specified reading direction. Output Markdown.",
-            "table" => "Table Recognition:",
-            "formula" => "Formula Recognition:",
-            "document" => "OCR:\nPreserve the document reading order, headings, paragraphs, lists and tables. Output Markdown. Transcribe visible text without translating or inventing content.",
-            _ => "OCR:",
-        };
-        if self.instructions.trim().is_empty() {
-            base.into()
-        } else {
-            format!("{}\n{}", base, self.instructions.trim())
-        }
+        crate::models::get(&self.model_id)
+            .expect("Validated model")
+            .prompt(self)
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -145,7 +130,7 @@ pub struct Store {
     pub project: Project,
 }
 pub fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
-    let parent = path.parent().ok_or("잘못된 저장 경로입니다.")?;
+    let parent = path.parent().ok_or(crate::i18n::text("invalidPath"))?;
     fs::create_dir_all(parent).map_err(err)?;
     let mut temp = tempfile::NamedTempFile::new_in(parent).map_err(err)?;
     temp.write_all(data).map_err(err)?;
@@ -156,7 +141,7 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
 pub fn inside(root: &Path, relative: &str) -> Result<PathBuf> {
     let rel = Path::new(relative);
     if relative.is_empty() || rel.components().any(|c| !matches!(c, Component::Normal(_))) {
-        return Err("프로젝트 내부 경로가 올바르지 않습니다.".into());
+        return Err(crate::i18n::text("invalidProjectPath").into());
     }
     let target = root.join(rel);
     if target.exists()
@@ -165,7 +150,7 @@ pub fn inside(root: &Path, relative: &str) -> Result<PathBuf> {
             .map_err(err)?
             .starts_with(root.canonicalize().map_err(err)?)
     {
-        return Err("프로젝트 밖의 파일에는 접근할 수 없습니다.".into());
+        return Err(crate::i18n::text("outsideProject").into());
     }
     Ok(target)
 }
@@ -175,7 +160,7 @@ impl Store {
             schema_version: 2,
             id: id(),
             name: if name.trim().is_empty() {
-                "새 문서".into()
+                crate::i18n::translated("newDocument")
             } else {
                 name.trim().into()
             },
@@ -197,7 +182,7 @@ impl Store {
         };
         let mut project = read("project.json").or_else(|_| read("project.json.bak"))?;
         if project.schema_version != 2 {
-            return Err("Glyph 2 작업 폴더를 선택하세요. 기존 v1 프로젝트는 원본 이미지를 새로 추가할 수 있습니다.".into());
+            return Err(crate::i18n::text("invalidProject").into());
         }
         project.settings.validate()?;
         for page in &mut project.pages {
@@ -207,7 +192,7 @@ impl Store {
             if page.status == "processing" {
                 page.status = "queued".into();
                 page.error = None;
-                page.warning = Some("중단된 페이지입니다. 스캔을 다시 시작하세요.".into());
+                page.warning = Some(crate::i18n::text("interruptedPage").into());
             }
         }
         let mut store = Self { root, project };
@@ -230,14 +215,14 @@ impl Store {
             .pages
             .iter()
             .find(|p| p.id == page_id)
-            .ok_or_else(|| "페이지를 찾지 못했습니다.".into())
+            .ok_or_else(|| crate::i18n::text("pageMissing").into())
     }
     pub fn page_mut(&mut self, page_id: &str) -> Result<&mut Page> {
         self.project
             .pages
             .iter_mut()
             .find(|p| p.id == page_id)
-            .ok_or_else(|| "페이지를 찾지 못했습니다.".into())
+            .ok_or_else(|| crate::i18n::text("pageMissing").into())
     }
     pub fn save_result(&mut self, page_id: &str) -> Result<()> {
         let p = self.page(page_id)?;

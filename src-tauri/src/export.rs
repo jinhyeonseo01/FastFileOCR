@@ -12,7 +12,7 @@ pub fn render(project: &Project, format: &str) -> Result<String> {
         .collect::<Vec<_>>();
     if format == "json" {
         return serde_json::to_string_pretty(&json!({
-            "schemaVersion": 2, "generator": concat!("Glyph OCR ",env!("CARGO_PKG_VERSION")), "model": "PaddleOCR-VL-1.6",
+            "schemaVersion": 2, "generator": concat!("FastFileOCR ",env!("CARGO_PKG_VERSION")), "model": crate::models::get(&project.settings.model_id)?.descriptor().name, "modelId": project.settings.model_id,
             "project": {"id":project.id,"name":project.name,"updatedAt":project.updated_at},
             "structureSource":"model_output_markdown_or_html", "coordinatesAvailable":project.pages.iter().any(|p|!p.regions.is_empty()),
             "coordinateSystem":"normalized_page_image_pixels", "regionDetector":"PP-DocLayoutV3", "bboxFormat":"left,top,right,bottom",
@@ -28,7 +28,7 @@ pub fn render(project: &Project, format: &str) -> Result<String> {
         .map_err(err);
     }
     if pages.is_empty() {
-        return Err("내보낼 인식 결과가 없습니다.".into());
+        return Err(crate::i18n::text("noExport").into());
     }
     match format {
         "md" => Ok(pages
@@ -58,9 +58,15 @@ pub fn render(project: &Project, format: &str) -> Result<String> {
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
-            Ok(format!("<!doctype html><html lang=\"ko\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'\"><title>Glyph document</title><style>body{{max-width:900px;margin:48px auto;padding:0 24px;font:16px/1.8 system-ui;color:#202826}}table{{border-collapse:collapse;width:100%}}td,th{{border:1px solid #ccd4d0;padding:8px;text-align:left}}pre{{white-space:pre-wrap;background:#f1f4f2;padding:16px}}.page{{break-after:page;margin-bottom:64px}}@media print{{body{{margin:0}}}}</style><body>{sections}</body></html>"))
+            let title = project
+                .name
+                .replace('&', "&amp;")
+                .replace('<', "&lt;")
+                .replace('>', "&gt;")
+                .replace('"', "&quot;");
+            Ok(format!("<!doctype html><html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'\"><title>{title}</title><style>body{{max-width:900px;margin:48px auto;padding:0 24px;font:16px/1.8 system-ui;color:#243e59}}table{{border-collapse:collapse;width:100%}}td,th{{border:1px solid #d4e3f2;padding:8px;text-align:left}}pre{{white-space:pre-wrap;background:#f2f7fd;padding:16px}}.page{{break-after:page;margin-bottom:64px}}@media print{{body{{margin:0}}}}</style><body>{sections}</body></html>"))
         }
-        _ => Err("TXT, Markdown, JSON, HTML 중에서 선택하세요.".into()),
+        _ => Err(crate::i18n::text("invalidExport").into()),
     }
 }
 pub fn save(project: &Project, path: &Path, format: &str) -> Result<()> {
@@ -70,7 +76,7 @@ pub fn save(project: &Project, path: &Path, format: &str) -> Result<()> {
         .map(|x| x.to_lowercase())
         != Some(format.into())
     {
-        return Err(format!("파일 확장자는 .{format}이어야 합니다."));
+        return Err(crate::i18n::f("exportExtension", &[(format).to_string()]));
     }
     atomic_write(path, render(project, format)?.as_bytes())
 }

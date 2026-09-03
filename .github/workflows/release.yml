@@ -11,6 +11,8 @@ concurrency:
 jobs:
   installer:
     runs-on: windows-2025
+    env:
+      FASTFILEOCR_GITHUB_REPOSITORY: ${{ github.repository }}
     timeout-minutes: 60
     permissions:
       contents: write
@@ -34,13 +36,19 @@ jobs:
         with:
           workspaces: src-tauri
       - name: Set application version from tag
-        run: node scripts/set-version.mjs $env:GITHUB_REF_NAME
+        id: version
+        run: |
+          node scripts/release/set-version.mjs $env:GITHUB_REF_NAME
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "version=$((Get-Content package.json -Raw | ConvertFrom-Json).version)" >> $env:GITHUB_OUTPUT
       - name: Install frontend dependencies
         run: npm ci
       - name: Prepare native engines and layout graph
         run: npm run resources:prepare
       - name: Verify source and tests
         run: |
+          npm run locales:check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
@@ -49,11 +57,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build installer EXE
         run: npm run installer
+      - name: Verify installer data lifecycle
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/test-installer-data.ps1
       - name: Upload installer build
         uses: actions/upload-artifact@v4
         with:
-          name: Glyph-OCR-${{ github.ref_name }}-windows-x64
-          path: src-tauri/target/release/bundle/inno/*
+          name: FastFileOCR-${{ github.ref_name }}-windows-x64
+          path: |
+            src-tauri/target/release/bundle/inno/FastFileOCR_${{ steps.version.outputs.version }}_x64-setup.exe
+            src-tauri/target/release/bundle/inno/FastFileOCR_${{ steps.version.outputs.version }}_x64-setup.exe.sha256
+            src-tauri/target/release/bundle/inno/build-info.json
           if-no-files-found: error
           compression-level: 0
       - name: Publish GitHub Release
@@ -62,10 +75,13 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           $tag = $env:GITHUB_REF_NAME
-          $assets = @(Get-ChildItem -LiteralPath src-tauri/target/release/bundle/inno -File | ForEach-Object FullName)
+          $output = "src-tauri/target/release/bundle/inno"
+          $build = Get-Content "$output/build-info.json" -Raw | ConvertFrom-Json
+          $assets = @("$output/$($build.installer.file)", "$output/$($build.installer.file).sha256", "$output/build-info.json")
+          foreach ($asset in $assets) { if (!(Test-Path -LiteralPath $asset)) { throw "Missing release asset: $asset" } }
           gh release view $tag --json id 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --verify-tag --title "Glyph OCR $tag" --generate-notes @assets
+            gh release create $tag --verify-tag --title "FastFileOCR $tag" --generate-notes @assets
           } else {
             gh release upload $tag --clobber @assets
           }

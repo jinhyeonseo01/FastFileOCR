@@ -1,7 +1,7 @@
 param([switch]$SkipBuild)
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$root = Split-Path $PSScriptRoot -Parent
+$root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 Set-Location -LiteralPath $root
 $cache = Join-Path $root '.cache'
 New-Item -ItemType Directory -Force -Path "$cache/bundle" | Out-Null
@@ -11,7 +11,9 @@ function Hash-File([string]$path) {
   try { return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-','').ToLowerInvariant() }
   finally { $stream.Dispose(); $sha.Dispose() }
 }
-node scripts/check-resources.mjs
+node scripts/build/installer-locales.mjs
+if ($LASTEXITCODE -ne 0) { throw 'Installer locale generation failed.' }
+node scripts/build/check-resources.mjs
 if ($LASTEXITCODE -ne 0) { throw 'Bundled resources are not ready. Run npm run resources:prepare.' }
 if (!$SkipBuild) {
   & npx.cmd tauri build --no-bundle
@@ -43,9 +45,9 @@ if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notm
 $version = (Get-Content -LiteralPath "$root/package.json" -Raw | ConvertFrom-Json).version
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Installer version must be major.minor.patch.' }
 $output = "$root/src-tauri/target/release/bundle/inno"
-& $compiler "/DRoot=$root" "/DAppVersion=$version" "/DWebViewInstaller=$webview" "$root/installer/glyph.iss"
+& $compiler "/DRoot=$root" "/DAppVersion=$version" "/DWebViewInstaller=$webview" "$root/installer/fastfileocr.iss"
 if ($LASTEXITCODE -ne 0) { throw 'Inno Setup compilation failed.' }
-$installer = "$output/Glyph-OCR_$($version)_x64-setup.exe"
+$installer = "$output/FastFileOCR_$($version)_x64-setup.exe"
 if (!(Test-Path -LiteralPath $installer)) { throw 'Installer output missing.' }
 "$((Hash-File $installer))  $([IO.Path]::GetFileName($installer))" | Set-Content -LiteralPath "$installer.sha256" -Encoding ascii
 @{
