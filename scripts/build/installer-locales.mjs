@@ -1,6 +1,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-const languages = { english: "en", korean: "ko", japanese: "ja" };
+const languages = { ENGLISH: "en", KOREAN: "ko", JAPANESE: "ja" };
 const keys = [
+  "installWindowsRequired",
   "installDataTitle",
   "installDataDescription",
   "installDataHint",
@@ -12,20 +13,34 @@ const keys = [
   "installUnsafe",
   "installWriteError",
   "installResetConfirm",
-  "installDataSummary",
+  "installBrowse",
+  "installDataResolved",
+  "uninstallDataTitle",
+  "uninstallDataHint",
   "uninstallData",
   "uninstallDocuments",
   "uninstallUnsafe",
-  "webviewStartError",
-  "webviewInstallError",
-  "installerAppRunning",
 ];
-let result = "; Generated from locate/*.json. Do not edit.\n[CustomMessages]\n";
-for (const [inno, lang] of Object.entries(languages)) {
+const escape = (value) =>
+  value
+    .replaceAll("$", () => "$")
+    .replaceAll('"', '$\\"')
+    .replace(/\r?\n/g, "$\\r$\\n");
+let result = "; Generated from locate/*.json. Do not edit.\n";
+for (const [nsis, lang] of Object.entries(languages)) {
   const values = JSON.parse(await readFile("locate/" + lang + ".json", "utf8"));
-  for (const key of keys)
+  for (const key of keys) {
+    if (!values[key])
+      throw new Error("Missing installer translation: " + lang + "/" + key);
     result +=
-      inno + "." + key + "=" + values[key].replace(/\r?\n/g, "%n") + "\n";
+      "LangString " +
+      key +
+      " ${LANG_" +
+      nsis +
+      '} "' +
+      escape(values[key]) +
+      '"\n';
+  }
 }
 await mkdir(".cache/installer", { recursive: true });
-await writeFile(".cache/installer/messages.iss", "\ufeff" + result);
+await writeFile(".cache/installer/messages.nsh", "\ufeff" + result);

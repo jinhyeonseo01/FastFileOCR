@@ -267,12 +267,12 @@ impl Updater {
         }
         // Deliberately interactive: installation and data-retention choices stay visible.
         let installer_language = match language {
-            "ko" => "korean",
-            "ja" => "japanese",
-            _ => "english",
+            "ko" => "1042",
+            "ja" => "1041",
+            _ => "1033",
         };
         std::process::Command::new(&path)
-            .arg(format!("/LANG={installer_language}"))
+            .arg(format!("/LANGUAGE={installer_language}"))
             .spawn()
             .map_err(err)?;
         Ok(())

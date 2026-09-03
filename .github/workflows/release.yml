@@ -55,18 +55,18 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Build installer EXE
+      - name: Build NSIS installer EXE
         run: npm run installer
       - name: Verify installer data lifecycle
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/test-installer-data.ps1
+        run: npm run installer:test
       - name: Upload installer build
         uses: actions/upload-artifact@v4
         with:
           name: FastFileOCR-${{ github.ref_name }}-windows-x64
           path: |
-            src-tauri/target/release/bundle/inno/FastFileOCR_${{ steps.version.outputs.version }}_x64-setup.exe
-            src-tauri/target/release/bundle/inno/FastFileOCR_${{ steps.version.outputs.version }}_x64-setup.exe.sha256
-            src-tauri/target/release/bundle/inno/build-info.json
+            src-tauri/target/release/bundle/nsis/FastFileOCR_${{ steps.version.outputs.version }}_x64-setup.exe
+            src-tauri/target/release/bundle/nsis/FastFileOCR_${{ steps.version.outputs.version }}_x64-setup.exe.sha256
+            src-tauri/target/release/bundle/nsis/build-info.json
           if-no-files-found: error
           compression-level: 0
       - name: Publish GitHub Release
@@ -75,7 +75,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           $tag = $env:GITHUB_REF_NAME
-          $output = "src-tauri/target/release/bundle/inno"
+          $output = "src-tauri/target/release/bundle/nsis"
           $build = Get-Content "$output/build-info.json" -Raw | ConvertFrom-Json
           $assets = @("$output/$($build.installer.file)", "$output/$($build.installer.file).sha256", "$output/build-info.json")
           foreach ($asset in $assets) { if (!(Test-Path -LiteralPath $asset)) { throw "Missing release asset: $asset" } }

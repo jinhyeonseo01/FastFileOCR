@@ -8,13 +8,14 @@
     "build": "tsc --noEmit && vite build",
     "desktop": "tauri dev",
     "tauri": "tauri",
-    "resources:prepare": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build/resources.ps1",
+    "resources:prepare": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build/resources.ps1 && node scripts/build/prepare-nsis.mjs",
     "resources:check": "node scripts/build/check-resources.mjs",
     "installer": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build/installer.ps1",
     "test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "check": "npm run build && cargo check --manifest-path src-tauri/Cargo.toml",
     "format": "prettier --write src locate scripts/**/*.mjs README*.md docs/**/*.md",
-    "locales:check": "node scripts/dev/check-locales.mjs"
+    "locales:check": "node scripts/dev/check-locales.mjs",
+    "installer:test": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/test-installer-data.ps1"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",
@@ -28,7 +29,7 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.8.0",
+    "@tauri-apps/cli": "2.11.4",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",

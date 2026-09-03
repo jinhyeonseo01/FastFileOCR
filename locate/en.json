@@ -277,5 +277,10 @@
   "reference": "Reference",
   "reference_content": "Reference text",
   "seal": "Seal",
-  "vision_footnote": "Image footnote"
+  "vision_footnote": "Image footnote",
+  "installBrowse": "Browse…",
+  "installDataResolved": "Data will be stored here:",
+  "uninstallDataTitle": "Choose what to remove",
+  "uninstallDataHint": "Unchecked items will be kept for future installations.",
+  "installWindowsRequired": "FastFileOCR requires Windows 10 or later."
 }

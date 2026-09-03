@@ -1,121 +1,126 @@
 param()
 $ErrorActionPreference = 'Stop'
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-$testRoot = [IO.Path]::GetFullPath((Join-Path $root '.cache/installer-data-tests'))
-if (!$testRoot.StartsWith([IO.Path]::GetFullPath($root) + [IO.Path]::DirectorySeparatorChar)) { throw 'Invalid test root' }
-$runRoot = Join-Path $testRoot ([guid]::NewGuid().ToString('N'))
+Set-Location -LiteralPath $root
+cargo test --locked --manifest-path installer/helper/Cargo.toml --target-dir .cache/installer-helper-target
+if ($LASTEXITCODE -ne 0) { throw 'Installer helper tests failed.' }
+$sourceDir = Join-Path $root 'src-tauri/target/release/nsis/x64'
+$compiler = Join-Path $env:LOCALAPPDATA 'tauri/NSIS/makensis.exe'
+if (!(Test-Path -LiteralPath "$sourceDir/installer.nsi") -or !(Test-Path -LiteralPath $compiler)) {
+  throw 'Build the NSIS installer before running installer tests.'
+}
+$id = [guid]::NewGuid().ToString('N')
+$fixtureBase = [IO.Path]::GetFullPath((Join-Path $root '.cache/nsis-tests'))
+$runRoot = [IO.Path]::GetFullPath((Join-Path $fixtureBase $id))
+if (!$runRoot.StartsWith($fixtureBase + [IO.Path]::DirectorySeparatorChar)) { throw 'Invalid fixture root.' }
 New-Item -ItemType Directory -Force -Path $runRoot | Out-Null
-$compiler = Join-Path $root '.cache/inno-setup/ISCC.exe'
-if (!(Test-Path -LiteralPath $compiler)) { throw 'Build the installer before running its data tests.' }
-node (Join-Path $root 'scripts/build/installer-locales.mjs')
-if ($LASTEXITCODE -ne 0) { throw 'Locale generation failed' }
-$production = [IO.File]::ReadAllText((Join-Path $root 'installer/data.iss'))
+$regRoot = "Software\FastFileOCR-InstallerTests\$id"
+$product = "FastFileOCR-Test-$id"
+$helper = Join-Path $root 'src-tauri/resources/installer/fastfileocr-setup-helper.exe'
 $encoding = [Text.UTF8Encoding]::new($false)
-function Write-Text($Path, $Value) { [IO.File]::WriteAllText($Path,$Value,$encoding) }
+function Write-Text($Path, $Value) { [IO.File]::WriteAllText($Path, $Value, $encoding) }
 function Assert-Exists($Path) { if (!(Test-Path -LiteralPath $Path)) { throw "Expected retained data: $Path" } }
 function Assert-Missing($Path) { if (Test-Path -LiteralPath $Path) { throw "Unexpected retained data: $Path" } }
-function Run-TestProcess($File, $Arguments) {
-  $process = Start-Process -FilePath $File -ArgumentList $Arguments -WindowStyle Hidden -Wait -PassThru
+function Run-Setup($App, $Data, $Extra = @()) {
+  $arguments = @('/S','/NS',('/DATADIR="' + $Data + '"')) + $Extra + @('/D=' + $App)
+  $process = Start-Process -FilePath "$runRoot/setup.exe" -ArgumentList $arguments -WindowStyle Hidden -Wait -PassThru
   return $process.ExitCode
 }
-foreach ($scenario in @('fresh-retain','remove-data')) {
-  $case = Join-Path $runRoot $scenario
-  $data = Join-Path $case 'data'
-  $app = Join-Path $case 'app'
-  New-Item -ItemType Directory -Force -Path "$data/models","$data/workspaces","$data/logs","$data/updates" | Out-Null
+function Run-Uninstall($App, $Extra = @()) {
+  $process = Start-Process -FilePath "$App/uninstall.exe" -ArgumentList (@('/S') + $Extra + @('_?=' + $App)) -WindowStyle Hidden -Wait -PassThru
+  return $process.ExitCode
+}
+function Make-Data($Name) {
+  $data = Join-Path $runRoot "$Name/data"
+  New-Item -ItemType Directory -Force -Path "$data/models","$data/workspaces" | Out-Null
   Write-Text "$data/.fastfileocr-data" 'FastFileOCR data v1'
   Write-Text "$data/settings.json" '{"language":"ko","schemaVersion":1}'
-  Write-Text "$data/models/retained.part" 'model data'
-  Write-Text "$data/workspaces/document.txt" 'document data'
-  Write-Text "$data/unmanaged.txt" 'unrelated data'
-  Write-Text "$case/outside.txt" 'outside data'
-  Write-Text "$case/payload.txt" 'installer test'
-  $code = $production
-  if ($scenario -eq 'fresh-retain') {
-    # Simulate choosing Fresh and confirming it. All data operations are production code.
-    $code = $code.Replace('ModePage.SelectedValueIndex := 0;', 'ModePage.SelectedValueIndex := 1;')
-    $code = $code.Replace("Result := SuppressibleMsgBox(CustomMessage('installResetConfirm'), mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO) = IDYES;", 'Result := True;')
-  } else {
-    # Simulate both deletion choices; no real user data is used by this test harness.
-    $code = $code.Replace('RemoveUserData := False; RemoveDocuments := False;', 'RemoveUserData := True; RemoveDocuments := True;')
-  }
-  Write-Text "$case/data.iss" $code
-  $source = @"
-[Setup]
-AppId=FastFileOCR-Data-Test-$([guid]::NewGuid().ToString('N'))
-AppName=FastFileOCR data lifecycle test
-AppVersion=0.0.0
-DefaultDirName=$app
-PrivilegesRequired=lowest
-OutputDir=$case
-OutputBaseFilename=test-setup
-Compression=none
-DisableWelcomePage=yes
-DisableDirPage=yes
-DisableProgramGroupPage=yes
-[Languages]
-Name: "english"; MessagesFile: "compiler:Default.isl"
-Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
-Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
-#include "$root\.cache\installer\messages.iss"
-[Files]
-Source: "$case\payload.txt"; DestDir: "{app}"; Flags: ignoreversion
-[INI]
-Filename: "{app}\data-location.ini"; Section: "Data"; Key: "Directory"; String: "{code:DataDirectory}"; Flags: uninsdeletesection
-[Code]
-#include "$case\data.iss"
-function PrepareToInstall(var NeedsRestart: Boolean): String;
-begin
-  Result := ValidateDataDirectory;
-end;
-"@
-  Write-Text "$case/test.iss" $source
-  & $compiler /Qp "$case/test.iss"
-  if ($LASTEXITCODE -ne 0) { throw "Harness compilation failed: $scenario" }
-  $exit = Run-TestProcess "$case/test-setup.exe" @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',('/DATADIR="' + $data + '"'),('/LOG="' + $case + '\install.log"'))
-  if ($exit -ne 0) { throw "Harness install failed ($exit): $scenario" }
-  if ($scenario -eq 'fresh-retain') {
-    Assert-Missing "$data/settings.json"
-    Assert-Exists "$data/.fresh-settings"
-    $backups = @(Get-ChildItem -LiteralPath "$data/settings-backups" -File)
-    if ($backups.Count -ne 1 -or [IO.File]::ReadAllText($backups[0].FullName) -ne '{"language":"ko","schemaVersion":1}') { throw 'Fresh-install backup mismatch' }
-    Assert-Exists "$data/models/retained.part"
-    Assert-Exists "$data/workspaces/document.txt"
-  }
-  $exit = Run-TestProcess "$app/unins000.exe" @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/LOG="' + $case + '\uninstall.log"'))
-  if ($exit -ne 0) { throw "Harness uninstall failed ($exit): $scenario" }
-  if ($scenario -eq 'fresh-retain') {
-    Assert-Exists "$data/models/retained.part"
-    Assert-Exists "$data/workspaces/document.txt"
-    Assert-Exists "$data/settings-backups"
-  } else {
-    foreach ($child in @('settings.json','models','workspaces','logs','updates')) { Assert-Missing "$data/$child" }
-  }
-  Assert-Exists "$data/unmanaged.txt"
-  Assert-Exists "$data/.fastfileocr-data"
-  Assert-Exists "$case/outside.txt"
-  Write-Host "Passed: $scenario"
-  # Selecting a populated parent creates a dedicated child, preserving unrelated files.
-  $unowned = Join-Path $case 'unowned'
-  New-Item -ItemType Directory -Path $unowned | Out-Null
-  Write-Text "$unowned/personal.txt" 'must remain'
-  $arguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',('/DATADIR="' + $unowned + '"'),('/LOG="' + $case + '\parent.log"'))
-  $exit = Run-TestProcess "$case/test-setup.exe" $arguments
-  if ($exit -ne 0) { throw 'Populated parent selection was rejected' }
-  Assert-Exists "$unowned/personal.txt"
-  Assert-Missing "$unowned/.fastfileocr-data"
-  Assert-Exists "$unowned/FastFileOCR/.fastfileocr-data"
-  $exit = Run-TestProcess "$app/unins000.exe" @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART')
-  if ($exit -ne 0) { throw 'Parent-folder fixture uninstall failed' }
-  Assert-Exists "$unowned/personal.txt"
-  # If that dedicated child is already unrelated data, refuse to claim it.
-  $blocked = Join-Path $case 'blocked'
-  New-Item -ItemType Directory -Path "$blocked/FastFileOCR" -Force | Out-Null
-  Write-Text "$blocked/FastFileOCR/personal.txt" 'must remain'
-  $exit = Run-TestProcess "$case/test-setup.exe" @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',('/DATADIR="' + $blocked + '"'),('/LOG="' + $case + '\blocked.log"'))
-  if ($exit -eq 0) { throw 'Unowned dedicated folder was accepted' }
-  Assert-Exists "$blocked/FastFileOCR/personal.txt"
-  Assert-Missing "$blocked/FastFileOCR/.fastfileocr-data"
-
+  Write-Text "$data/models/keep.part" 'model'
+  Write-Text "$data/workspaces/keep.txt" 'document'
+  Write-Text "$data/personal.txt" 'unmanaged'
+  return $data
 }
-Write-Host 'Installer fresh-start, retention, deletion, parent-folder and ownership tests passed.'
+# Use production NSIS pages and hooks, replacing only fixture identity and payload.
+$source = [IO.File]::ReadAllText("$sourceDir/installer.nsi")
+$defines = @{
+  MANUFACTURER = "FastFileOCR-InstallerTests\$id"
+  PRODUCTNAME = $product
+  MAINBINARYNAME = 'fastfileocr-setup-helper'
+  MAINBINARYSRCPATH = $helper
+  BUNDLEID = "test.fastfileocr.$id"
+  OUTFILE = "$runRoot/setup.exe"
+  INSTALLWEBVIEW2MODE = 'skip'
+  ESTIMATEDSIZE = '2048'
+}
+foreach ($key in $defines.Keys) {
+  $value = $defines[$key]
+  $source = [regex]::Replace($source, "(?m)^!define $key `"[^`"]*`"", [System.Text.RegularExpressions.MatchEvaluator]{ param($m) "!define $key `"$value`"" })
+}
+$source = "!define FFO_REGKEY `"$regRoot\Data`"`n" + $source
+$source = $source.Replace('!include "utils.nsh"', "!include `"$sourceDir\utils.nsh`"").Replace('!include "FileAssociation.nsh"', "!include `"$sourceDir\FileAssociation.nsh`"")
+$source = [regex]::Replace($source, '(?m)^    File /a[^\r\n]*', [System.Text.RegularExpressions.MatchEvaluator]{
+  param($m)
+  if ($m.Value.Contains('fastfileocr-setup-helper.exe')) { return $m.Value }
+  return ''
+})
+$source = $source.Replace('SetCompressor /SOLID "lzma"', 'SetCompress off')
+Write-Text "$runRoot/test.nsi" $source
+& $compiler -INPUTCHARSET UTF8 -V2 "$runRoot/test.nsi" *> "$runRoot/compile.log"
+if ($LASTEXITCODE -ne 0) { Get-Content "$runRoot/compile.log"; throw 'NSIS fixture compilation failed.' }
+try {
+  $data = Make-Data ('fresh-' + [char]0xD55C + [char]0xAE00 + ' ' + [char]0x65E5)
+  $app = Join-Path $runRoot 'fresh/app folder'
+  if ((Run-Setup $app $data @('/FRESH=1','/LANGUAGE=1041')) -ne 0) { throw 'Fresh install failed.' }
+  Assert-Missing "$data/settings.json"
+  Assert-Exists "$data/.fresh-settings"
+  $backups = @(Get-ChildItem -LiteralPath "$data/settings-backups" -File)
+  if ($backups.Count -ne 1 -or [IO.File]::ReadAllText($backups[0].FullName) -ne '{"language":"ko","schemaVersion":1}') { throw 'Settings backup mismatch.' }
+  $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("$regRoot\Data")
+  try {
+    if ($key.GetValue('Language') -ne 'ja' -or $key.GetValue('DataDir') -ne $data) { throw 'Initial language/data directory mismatch.' }
+  } finally { $key.Dispose() }
+  Write-Text "$data/settings.json" 'saved settings'
+  if ((Run-Setup $app $data @('/LANGUAGE=1042')) -ne 0) { throw 'Reinstall failed.' }
+  if ([IO.File]::ReadAllText("$data/settings.json") -ne 'saved settings') { throw 'Reinstall changed settings.' }
+  if ((Run-Uninstall $app) -ne 0) { throw 'Default uninstall failed.' }
+  Assert-Exists "$data/models/keep.part"
+  Assert-Exists "$data/workspaces/keep.txt"
+  Write-Host 'Passed: fresh backup, language, reinstall and default retention'
+  foreach ($case in @('data-only','documents-only','both','update-retains')) {
+    $data = Make-Data $case
+    $app = Join-Path $runRoot "$case/app"
+    if ((Run-Setup $app $data @('/LANGUAGE=1033')) -ne 0) { throw "Install failed: $case" }
+    $flags = @()
+    if ($case -in @('data-only','both','update-retains')) { $flags += '/REMOVEUSERDATA=1' }
+    if ($case -in @('documents-only','both','update-retains')) { $flags += '/REMOVEDOCUMENTS=1' }
+    if ($case -eq 'update-retains') { $flags += '/UPDATE' }
+    if ((Run-Uninstall $app $flags) -ne 0) { throw "Uninstall failed: $case" }
+    if ($case -in @('data-only','both')) { Assert-Missing "$data/models"; Assert-Missing "$data/settings.json" }
+    else { Assert-Exists "$data/models/keep.part"; Assert-Exists "$data/settings.json" }
+    if ($case -in @('documents-only','both')) { Assert-Missing "$data/workspaces" }
+    else { Assert-Exists "$data/workspaces/keep.txt" }
+    Assert-Exists "$data/personal.txt"
+    Assert-Exists "$data/.fastfileocr-data"
+    Write-Host "Passed: $case"
+  }
+  $parent = Join-Path $runRoot 'parent'
+  New-Item -ItemType Directory -Path $parent | Out-Null
+  Write-Text "$parent/personal.txt" 'keep'
+  $app = Join-Path $runRoot 'parent-app'
+  if ((Run-Setup $app $parent) -ne 0) { throw 'Populated parent install failed.' }
+  Assert-Exists "$parent/FastFileOCR/.fastfileocr-data"
+  Assert-Missing "$parent/.fastfileocr-data"
+  Assert-Exists "$parent/personal.txt"
+  if ((Run-Uninstall $app) -ne 0) { throw 'Parent fixture uninstall failed.' }
+  $blocked = Join-Path $runRoot 'blocked'
+  New-Item -ItemType Directory -Path "$blocked/FastFileOCR" -Force | Out-Null
+  Write-Text "$blocked/FastFileOCR/personal.txt" 'keep'
+  if ((Run-Setup (Join-Path $runRoot 'blocked-app') $blocked) -eq 0) { throw 'Unowned folder was accepted.' }
+  Assert-Missing "$blocked/FastFileOCR/.fastfileocr-data"
+  Assert-Exists "$blocked/FastFileOCR/personal.txt"
+  Write-Host 'Passed: populated parent resolution and unsafe-folder rejection'
+} finally {
+  [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree($regRoot, $false)
+  [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree("Software\Microsoft\Windows\CurrentVersion\Uninstall\$product", $false)
+}
+Write-Host "NSIS lifecycle checks passed. Fixtures: $runRoot"

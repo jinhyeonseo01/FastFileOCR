@@ -5,7 +5,7 @@ Date: September 3, 2026. Windows x64 development machine; NVIDIA RTX 4080 SUPER,
 ## Source and packaging
 
 - TypeScript checks and the Vite production build pass. Markdown rendering is a separate lazy-loaded chunk.
-- Rust checks, formatting and 21 unit tests pass.
+- Rust checks, formatting and 22 unit tests pass.
 - English, Korean and Japanese catalog keys, placeholders and source references pass validation.
 - The bundle verifier checks 177 prepared files and excludes model weights. CUDA, CPU, Vulkan, PDFium and ONNX Runtime are included.
 - GitHub Actions YAML parses; tag versioning, release permissions, current-version asset selection and the installer data test gate are configured.
@@ -26,23 +26,22 @@ Rust tests cover persistence/recovery, traversal protection, partial downloads, 
 
 Earlier runtime verification also exercised CPU and Vulkan OCR, clipboard Ctrl+V, the Tauri file-drop event, selected-page rescans and model download pause/stop/restart/resume. The physical Windows drag gesture was not automated.
 
-## Installer data lifecycle
+## NSIS installer data lifecycle
 
-The installer was installed into an isolated directory. Its selected data location and Japanese initial language were read by the installed app without a test data-path override. The installed app was then changed to Korean/CUDA with independent model options; reinstalling in keep mode preserved settings byte-for-byte and retained both pages.
+The Tauri NSIS template compiles with English, Korean and Japanese pages. Its data operations use a standalone Rust helper; six tests cover fresh settings backups, reinstall retention, independent deletion choices, unowned folders, traversal, junction rejection and overlapping installation/data paths.
 
-The executable data test harness uses the production installer procedures with simulated choices and isolated fixture folders. It verifies:
+The executable harness uses the rendered production NSIS template, pages, hooks and helper. Only the payload, WebView2 bootstrap and fixture identity are substituted. In isolated directories and registry keys it verifies:
 
-- Fresh settings are backed up before reset; models and workspaces remain.
-- Silent uninstall keeps data by default.
-- Choosing data removal deletes settings, models, logs, updates and selected managed workspaces.
-- Unrelated files and files outside the data folder remain untouched.
-- Choosing an ordinary populated parent creates a dedicated FastFileOCR child; it does not claim or erase the parent.
-- An occupied, unmarked dedicated child is rejected.
-- Silent validation failures do not display message boxes.
+- Fresh settings backups retain downloaded models and documents.
+- Installer language and data location are recorded correctly.
+- Reinstalling preserves saved settings byte-for-byte.
+- Default silent uninstall preserves user data.
+- Settings/models and document workspaces can be deleted independently.
+- Update-triggered uninstall preserves data even if cleanup flags are present.
+- Unmanaged files remain untouched.
+- Populated parent folders resolve to a dedicated child; occupied unowned children are rejected without a popup in silent mode.
 
-The harness caught and fixed a backup-date argument mismatch and incorrect handling of individual files during cleanup. Direct installation also caught an unsupported installer path constant. Those fixes are included in the final installer source.
-
-Run: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/test-installer-data.ps1` after an installer build. The release workflow runs the same gate.
+Run npm run installer:test after building the NSIS installer. The release workflow runs the same gate. The upstream template and CLI versions are pinned together, with a checksum and checked extension anchors.
 
 ## Scope and limitations
 

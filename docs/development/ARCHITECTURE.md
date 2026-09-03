@@ -35,3 +35,7 @@ The updater checks the configured repository's latest stable GitHub release. A v
 Visible text is stored in locate/en.json, ko.json and ja.json. Rust emits translation keys and structured parameters; the frontend resolves them in the selected language. Model prompts are separate from UI translations. Installer custom messages are generated from the same catalogs.
 
 Components are separated into sidebar, document editor, lazy-loaded Markdown rendering, settings, model options and notifications. Shared styles define the sky-blue palette and responsive layout. Tooling is grouped under scripts/build, scripts/release and scripts/dev.
+
+## Installer boundary
+
+Tauri's NSIS bundler owns the standard Windows package. A verified upstream template is extended at explicit anchors to add localized data pages and replace broad app-data removal. The template and CLI versions are pinned together. NSIS delegates path validation, fresh settings backups and selective cleanup to the standalone Rust crate in installer/helper. Install and uninstall tests use the same template, hooks and helper with isolated payloads and registry keys. Reinstallation and update-triggered uninstall retain user data.

@@ -277,5 +277,10 @@
   "reference": "참조",
   "reference_content": "참고문헌",
   "seal": "도장",
-  "vision_footnote": "이미지 각주"
+  "vision_footnote": "이미지 각주",
+  "installBrowse": "찾아보기…",
+  "installDataResolved": "데이터를 저장할 위치:",
+  "uninstallDataTitle": "삭제할 데이터 선택",
+  "uninstallDataHint": "체크하지 않은 항목은 재설치를 위해 유지됩니다.",
+  "installWindowsRequired": "FastFileOCR는 Windows 10 이상에서 실행할 수 있습니다."
 }

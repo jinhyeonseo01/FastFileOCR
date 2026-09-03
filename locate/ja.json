@@ -277,5 +277,10 @@
   "reference": "参照",
   "reference_content": "参考文献",
   "seal": "印章",
-  "vision_footnote": "画像の脚注"
+  "vision_footnote": "画像の脚注",
+  "installBrowse": "参照…",
+  "installDataResolved": "データの保存先:",
+  "uninstallDataTitle": "削除するデータを選択",
+  "uninstallDataHint": "チェックを外した項目は再インストールに備えて保持されます。",
+  "installWindowsRequired": "FastFileOCRにはWindows 10以降が必要です。"
 }

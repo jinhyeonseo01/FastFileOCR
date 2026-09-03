@@ -17,3 +17,8 @@ replace those licenses. See src-tauri/resources/NOTICE.txt in the repository
 or resources/NOTICE.txt and resources/licenses/ in the installed application.
 
 User-imported documents and OCR results are not licensed by this project.
+
+The Windows installer is generated from an extended Tauri NSIS template.
+Tauri's template retains its MIT license; NSIS retains its applicable licenses.
+See resources/licenses/Tauri-Installer-MIT.txt and resources/licenses/NSIS.txt
+in the installed application, or installer/nsis/ in the source repository.

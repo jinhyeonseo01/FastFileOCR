@@ -40,3 +40,7 @@
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# NSIS generated helper resources and standalone helper target
+/src-tauri/resources/installer/
+/installer/helper/target/

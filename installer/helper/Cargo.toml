@@ -1,0 +1,16 @@
+[package]
+name = "fastfileocr-installer-support"
+version = "0.1.0"
+edition = "2021"
+license = "CC-BY-4.0"
+publish = false
+
+[[bin]]
+name = "fastfileocr-setup-helper"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+panic = "abort"

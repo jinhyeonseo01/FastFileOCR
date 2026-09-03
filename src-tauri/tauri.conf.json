@@ -5,7 +5,7 @@
   "identifier": "com.glyph.localocr",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "npm run build && node scripts/build/prepare-nsis.mjs",
     "devUrl": "http://127.0.0.1:1420",
     "frontendDist": "../dist"
   },
@@ -24,24 +24,49 @@
     }
   },
   "bundle": {
-    "active": false,
+    "active": true,
     "shortDescription": "Offline document OCR with PaddleOCR-VL-1.6",
     "category": "Productivity",
-    "icon": [
-      "icons/icon.ico",
-      "icons/icon.png"
-    ],
+    "icon": ["icons/icon.ico", "icons/icon.png"],
     "resources": {
       "resources/runtime/": "resources/runtime/",
       "resources/layout/": "resources/layout/",
       "resources/licenses/": "resources/licenses/",
       "resources/chat-template.jinja": "resources/chat-template.jinja",
-      "resources/NOTICE.txt": "resources/NOTICE.txt"
+      "resources/NOTICE.txt": "resources/NOTICE.txt",
+      "resources/installer/": "resources/installer/",
+      "../LICENSE": "LICENSE",
+      "../NOTICE.txt": "NOTICE.txt",
+      "resources/runtime/msvc/concrt140.dll": "concrt140.dll",
+      "resources/runtime/msvc/msvcp140.dll": "msvcp140.dll",
+      "resources/runtime/msvc/msvcp140_1.dll": "msvcp140_1.dll",
+      "resources/runtime/msvc/msvcp140_2.dll": "msvcp140_2.dll",
+      "resources/runtime/msvc/msvcp140_atomic_wait.dll": "msvcp140_atomic_wait.dll",
+      "resources/runtime/msvc/msvcp140_codecvt_ids.dll": "msvcp140_codecvt_ids.dll",
+      "resources/runtime/msvc/vccorlib140.dll": "vccorlib140.dll",
+      "resources/runtime/msvc/vcruntime140.dll": "vcruntime140.dll",
+      "resources/runtime/msvc/vcruntime140_1.dll": "vcruntime140_1.dll",
+      "resources/runtime/msvc/vcruntime140_threads.dll": "vcruntime140_threads.dll",
+      "../installer/nsis/TAURI-LICENSE-MIT": "resources/licenses/Tauri-Installer-MIT.txt",
+      "../installer/nsis/NSIS-LICENSE.txt": "resources/licenses/NSIS.txt"
     },
     "windows": {
       "webviewInstallMode": {
         "type": "offlineInstaller"
+      },
+      "nsis": {
+        "template": "../.cache/installer/installer.nsi",
+        "installerHooks": "../installer/nsis/hooks.nsh",
+        "languages": ["English", "Korean", "Japanese"],
+        "displayLanguageSelector": true,
+        "installMode": "currentUser",
+        "compression": "lzma",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico"
       }
-    }
+    },
+    "targets": ["nsis"],
+    "publisher": "FastFileOCR",
+    "copyright": "FastFileOCR — CC BY 4.0"
   }
 }

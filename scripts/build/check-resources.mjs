@@ -1,9 +1,20 @@
 import { createReadStream } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 const root = path.resolve("src-tauri/resources");
+async function rejectModelWeights(directory) {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const target = path.join(directory, entry.name);
+    if (entry.isDirectory()) await rejectModelWeights(target);
+    else if (/\.(gguf|safetensors|part)$/i.test(entry.name))
+      throw new Error(
+        "Model weights must not be bundled: " + path.relative(root, target),
+      );
+  }
+}
 try {
+  await rejectModelWeights(root);
   const manifest = JSON.parse(
     (await readFile(path.join(root, "bundle-manifest.json"), "utf8")).replace(
       /^\uFEFF/,
