@@ -68,7 +68,9 @@ Choose the OCR model, processing device, and model-specific options and instruct
 
 Updates can be checked from Settings, with an optional notification at startup. Installing an update lets you keep existing settings or start fresh with a settings backup. Downloaded models and documents are retained. Uninstallation asks separately whether to remove settings and models, and whether to remove workspaces stored inside the app's data folder.
 
-The installer includes the required runtimes; you do not need Rust, Python, Node.js or LM Studio.
+The installer includes the CPU engine and document libraries. CUDA and Vulkan engines download automatically on first use: about **537 MB for CUDA** or **34 MB for Vulkan**. Downloads support pause and resume, and prepared engines are reused across app updates. Automatic mode selects one compatible GPU engine and falls back to CPU if needed.
+
+You do not need to install Rust, Python, Node.js, LM Studio or the CUDA Toolkit. A compatible graphics driver is required for GPU processing.
 
 ## Contributing
 

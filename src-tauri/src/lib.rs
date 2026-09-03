@@ -7,6 +7,7 @@ pub mod i18n;
 pub mod import;
 pub mod layout;
 pub mod models;
+pub mod runtimes;
 pub mod store;
 pub mod table;
 pub mod updates;
@@ -65,6 +66,7 @@ pub fn run() {
             let state = AppState {
                 store: Mutex::new(store),
                 engine: Engine::default(),
+                runtimes: runtimes::Runtimes::new(&data),
                 downloads: Mutex::new(Arc::new(downloads)),
                 preferences: Mutex::new(preferences),
                 data_root: data.clone(),
@@ -106,6 +108,7 @@ pub fn run() {
         .run(|app, event| {
             if matches!(event, tauri::RunEvent::Exit) {
                 app.state::<AppState>().downloads().cancel();
+                app.state::<AppState>().runtimes.cancel();
                 app.state::<AppState>().engine.cancel();
             }
         });

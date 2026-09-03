@@ -1,10 +1,11 @@
 param([switch]$SkipLayoutExport)
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $resources = Join-Path $root 'src-tauri/resources'
 $cache = Join-Path $root '.cache/bundle'
-New-Item -ItemType Directory -Force -Path $cache,"$resources/runtime/cpu","$resources/runtime/vulkan","$resources/runtime/pdfium","$resources/licenses" | Out-Null
+New-Item -ItemType Directory -Force -Path $cache,"$resources/runtime/cpu","$resources/runtime/pdfium","$resources/licenses" | Out-Null
 function Get-AssetHash([string]$LiteralPath, [string]$Algorithm = 'SHA256') {
   $stream = [IO.File]::OpenRead($LiteralPath)
   $sha = [Security.Cryptography.SHA256]::Create()
@@ -23,32 +24,21 @@ function Fetch-Checked($url, $path, $hash) {
     Move-Item -LiteralPath "$path.part" -Destination $path -Force
   }
 }
-$version = 'b10621'
-$variants = @{
-  cpu = '0e8b65e650e369f70f8307d890508886f171ef4fb00facccddd4a1b7ffdaca51'
-  vulkan = '2672d85bf87c8280d94dee01eb6a86280046878f70a07d786a93637fa9081163'
-}
-foreach ($variant in @('cpu','vulkan')) {
-  $name = "llama-$version-bin-win-$variant-x64.zip"
-  Fetch-Checked "https://github.com/ggml-org/llama.cpp/releases/download/$version/$name" "$cache/$name" $variants[$variant]
-  New-Item -ItemType Directory -Force -Path "$cache/$variant" | Out-Null
-  tar -xf "$cache/$name" -C "$cache/$variant"
-  if ($LASTEXITCODE -ne 0) { throw "llama.cpp extraction failed." }
-  Get-ChildItem -LiteralPath "$cache/$variant" -Recurse -File | Where-Object { $_.Extension -eq '.dll' -or $_.Name -eq 'llama-server.exe' } | ForEach-Object { Copy-Asset $_.FullName (Join-Path "$resources/runtime/$variant" $_.Name) }
-}
+$runtimeManifest = Get-Content -LiteralPath "$root/src-tauri/src/runtimes/manifest.json" -Raw | ConvertFrom-Json
+$version = $runtimeManifest.version
+$cpu = $runtimeManifest.files.cpu[0]
+Fetch-Checked $cpu.url "$cache/$($cpu.name)" $cpu.sha256
+New-Item -ItemType Directory -Force -Path "$cache/cpu" | Out-Null
+tar -xf "$cache/$($cpu.name)" -C "$cache/cpu"
+if ($LASTEXITCODE -ne 0) { throw 'llama.cpp CPU extraction failed.' }
+Get-ChildItem -LiteralPath "$cache/cpu" -Recurse -File | Where-Object { $_.Extension -eq '.dll' -or $_.Name -eq 'llama-server.exe' } | ForEach-Object { Copy-Asset $_.FullName (Join-Path "$resources/runtime/cpu" $_.Name) }
 
-# CUDA sidecar and its runtime are pinned to the same llama.cpp release.
-New-Item -ItemType Directory -Force -Path "$resources/runtime/cuda","$cache/cuda","$cache/cudart" | Out-Null
-$cudaName = "llama-$version-bin-win-cuda-13.3-x64.zip"
-Fetch-Checked "https://github.com/ggml-org/llama.cpp/releases/download/$version/$cudaName" "$cache/$cudaName" '23549ccc00b6a18d74348e95d4789f7e96c9efb11cf6e3f1b185baef34d7449f'
-$cudartName = 'cudart-llama-bin-win-cuda-13.3-x64.zip'
-Fetch-Checked "https://github.com/ggml-org/llama.cpp/releases/download/$version/$cudartName" "$cache/$cudartName" '1462a050eb4c684921ba51dcc4cc488a036674c3e73e9945ee705b854808d03e'
-tar -xf "$cache/$cudaName" -C "$cache/cuda"
-if ($LASTEXITCODE -ne 0) { throw 'CUDA sidecar extraction failed.' }
-tar -xf "$cache/$cudartName" -C "$cache/cudart"
-if ($LASTEXITCODE -ne 0) { throw 'CUDA runtime extraction failed.' }
-foreach ($folder in @('cuda','cudart')) {
-  Get-ChildItem -LiteralPath "$cache/$folder" -Recurse -File | Where-Object { $_.Extension -eq '.dll' -or $_.Name -eq 'llama-server.exe' } | ForEach-Object { Copy-Asset $_.FullName "$resources/runtime/cuda/$($_.Name)" }
+# Clean only generated GPU copies inside the resource tree. User runtime caches are separate.
+$runtimeRoot = [IO.Path]::GetFullPath((Join-Path $resources 'runtime'))
+foreach ($device in @('cuda','vulkan')) {
+  $target = [IO.Path]::GetFullPath((Join-Path $runtimeRoot $device))
+  if (!$target.StartsWith($runtimeRoot + [IO.Path]::DirectorySeparatorChar) -or [IO.Path]::GetFileName($target) -ne $device) { throw 'Invalid generated runtime directory.' }
+  if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
 }
 
 Fetch-Checked 'https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/8035/pdfium-win-x64.tgz' "$cache/pdfium.tgz" '61513d611ad200a383456140739be77d156f1e3a2eef22bd89f6c3bda79bdd41'
@@ -94,7 +84,7 @@ $redist = Get-ChildItem -LiteralPath "$vsRoot/VC/Redist/MSVC" -Directory |
 if (!$redist) { throw 'MSVC x64 redistributable CRT directory was not found.' }
 New-Item -ItemType Directory -Force -Path "$resources/runtime/msvc" | Out-Null
 foreach ($dll in (Get-ChildItem -LiteralPath $redist.FullName -File -Filter '*.dll')) {
-  foreach ($variant in @('msvc','cpu','vulkan','cuda','onnxruntime')) { Copy-Asset $dll.FullName "$resources/runtime/$variant/$($dll.Name)" }
+  foreach ($variant in @('msvc','cpu','onnxruntime')) { Copy-Asset $dll.FullName "$resources/runtime/$variant/$($dll.Name)" }
 }
 Copy-Item -LiteralPath "$cache/cpu/LICENSE-LLVM-OpenMP" -Destination "$resources/licenses/LLVM-OpenMP.txt" -Force
 @'
@@ -111,7 +101,7 @@ https://developer.microsoft.com/en-us/microsoft-edge/webview2/
 node (Join-Path $PSScriptRoot 'collect-notices.mjs')
 if ($LASTEXITCODE -ne 0) { throw 'Third-party notice collection failed.' }
 
-$records = Get-ChildItem -LiteralPath $resources -Recurse -File | Where-Object Name -ne 'bundle-manifest.json' | ForEach-Object {
+$records = Get-ChildItem -LiteralPath $resources -Recurse -File | Where-Object { $_.Name -ne 'bundle-manifest.json' -and !$_.FullName.StartsWith((Join-Path $resources 'installer') + [IO.Path]::DirectorySeparatorChar) } | ForEach-Object {
   @{ path = $_.FullName.Substring($resources.Length + 1).Replace('\','/'); bytes = $_.Length; sha256 = (Get-AssetHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
 }
 @{ schemaVersion = 1; llama = $version; pdfium = 'chromium/8035'; model = 'PaddlePaddle/PaddleOCR-VL-1.6-GGUF'; files = @($records) } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$resources/bundle-manifest.json" -Encoding utf8

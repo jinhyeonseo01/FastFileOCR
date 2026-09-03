@@ -43,7 +43,12 @@ jobs:
           "version=$((Get-Content package.json -Raw | ConvertFrom-Json).version)" >> $env:GITHUB_OUTPUT
       - name: Install frontend dependencies
         run: npm ci
-      - name: Prepare native engines and layout graph
+      - name: Cache bundled CPU and document libraries
+        uses: actions/cache@v4
+        with:
+          path: .cache/bundle
+          key: windows-cpu-assets-${{ hashFiles('scripts/build/resources.ps1', 'src-tauri/src/runtimes/manifest.json') }}
+      - name: Prepare CPU engine and document libraries
         run: npm run resources:prepare
       - name: Verify source and tests
         run: |

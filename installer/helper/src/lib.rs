@@ -200,6 +200,7 @@ pub fn remove(root: &Path, data: bool, documents: bool) -> Result<()> {
             "settings.json",
             "settings-backups",
             "models",
+            "runtimes",
             "logs",
             "updates",
         ]);
@@ -248,7 +249,7 @@ mod tests {
         let f = Fixture::new();
         let root = prepare(&f.path("한국어 日本語 data"), &f.path("app"), false).unwrap();
         fs::write(root.join("settings.json"), r#"{"language":"ko"}"#).unwrap();
-        for name in ["models", "workspaces"] {
+        for name in ["models", "runtimes", "workspaces"] {
             fs::create_dir(root.join(name)).unwrap();
             fs::write(root.join(name).join("keep.part"), "retained").unwrap();
         }
@@ -262,6 +263,7 @@ mod tests {
             .path();
         assert_eq!(fs::read_to_string(backup).unwrap(), r#"{"language":"ko"}"#);
         assert!(root.join("models/keep.part").exists());
+        assert!(root.join("runtimes/keep.part").exists());
         assert!(root.join("workspaces/keep.part").exists());
     }
     #[test]
@@ -290,12 +292,13 @@ mod tests {
             .unwrap();
             fs::write(root.join("settings.json"), "settings").unwrap();
             fs::write(root.join("personal.txt"), "personal").unwrap();
-            for name in ["models", "workspaces"] {
+            for name in ["models", "runtimes", "workspaces"] {
                 fs::create_dir(root.join(name)).unwrap();
             }
             remove(&root, data, docs).unwrap();
             assert_eq!(root.join("settings.json").exists(), !data);
             assert_eq!(root.join("models").exists(), !data);
+            assert_eq!(root.join("runtimes").exists(), !data);
             assert_eq!(root.join("workspaces").exists(), !docs);
             assert!(root.join("personal.txt").exists());
             assert!(root.join(MARKER).exists());

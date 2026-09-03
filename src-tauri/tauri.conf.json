@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "FastFileOCR",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "io.github.jinhyeonseo01.fastfileocr",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build && node scripts/build/prepare-nsis.mjs",
+    "beforeBuildCommand": "npm run build && node scripts/build/check-resources.mjs && node scripts/build/prepare-nsis.mjs",
     "devUrl": "http://127.0.0.1:1420",
     "frontendDist": "../dist"
   },

@@ -122,6 +122,10 @@ pub(crate) fn scan_worker(app: &tauri::AppHandle, ids: &[String]) -> Result<()> 
         &state.logs,
         &settings.device,
         &settings.model_id,
+        &state.runtimes,
+        |progress| {
+            let _ = app.emit("model-download", progress);
+        },
     )?;
     let mut detector = if settings.use_layout {
         Some(layout::Detector::load(

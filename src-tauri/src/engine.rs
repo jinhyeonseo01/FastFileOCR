@@ -101,19 +101,34 @@ impl Engine {
         log_dir: &Path,
         device: &str,
         model_id: &str,
+        runtimes: &crate::runtimes::Runtimes,
+        notify: impl Fn(crate::download::Progress),
     ) -> Result<String> {
         self.stop();
-        let variants = if device == "auto" {
-            vec!["cuda", "vulkan", "cpu"]
+        let hardware = if device == "cpu" {
+            crate::runtimes::hardware::Hardware::default()
         } else {
-            vec![device]
+            crate::runtimes::hardware::Hardware::detect()
         };
+        let variants = hardware.candidates(device);
         let mut failures = Vec::new();
         for variant in variants {
             if self.cancelled() {
                 return Err(crate::i18n::text("cancelledOperation").into());
             }
-            match self.launch(resources, models, log_dir, variant, model_id) {
+            let result = (|| {
+                if (variant == "cuda" && !hardware.cuda)
+                    || (variant == "vulkan" && !hardware.vulkan)
+                {
+                    return Err(crate::i18n::f("runtimeUnavailable", &[variant.into()]));
+                }
+                let directory = runtimes.ensure(resources, variant, &notify)?;
+                if self.cancelled() {
+                    return Err(crate::i18n::text("cancelledOperation"));
+                }
+                self.launch(resources, models, log_dir, variant, model_id, &directory)
+            })();
+            match result {
                 Ok(()) => return Ok(variant.into()),
                 Err(e) => {
                     self.stop();
@@ -136,8 +151,9 @@ impl Engine {
         log_dir: &Path,
         device: &str,
         model_id: &str,
+        directory: &Path,
     ) -> Result<()> {
-        let binary = resources.join(format!("runtime/{device}/llama-server.exe"));
+        let binary = directory.join("llama-server.exe");
         let runtime = crate::models::get(model_id)?.runtime(resources, models);
         let model = runtime.weights;
         let projector = runtime.projector;

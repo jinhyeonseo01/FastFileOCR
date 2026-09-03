@@ -6,8 +6,11 @@ const root = path.resolve("src-tauri/resources");
 async function rejectModelWeights(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const target = path.join(directory, entry.name);
-    if (entry.isDirectory()) await rejectModelWeights(target);
-    else if (/\.(gguf|safetensors|part)$/i.test(entry.name))
+    if (entry.isDirectory()) {
+      if (/^runtime[/\\](cuda|vulkan)$/.test(path.relative(root, target)))
+        throw new Error("GPU engines must be downloaded on demand: " + target);
+      await rejectModelWeights(target);
+    } else if (/\.(gguf|safetensors|part)$/i.test(entry.name))
       throw new Error(
         "Model weights must not be bundled: " + path.relative(root, target),
       );
@@ -23,9 +26,6 @@ try {
   );
   for (const required of [
     "runtime/cpu/llama-server.exe",
-    "runtime/cuda/llama-server.exe",
-    "runtime/cuda/ggml-cuda.dll",
-    "runtime/vulkan/llama-server.exe",
     "runtime/pdfium/pdfium.dll",
     "chat-template.jinja",
     "licenses/PaddleOCR-Apache-2.0.txt",
@@ -37,7 +37,6 @@ try {
     "runtime/msvc/vcruntime140.dll",
     "runtime/msvc/vcruntime140_1.dll",
     "runtime/cpu/msvcp140.dll",
-    "runtime/vulkan/msvcp140.dll",
     "licenses/LLVM-OpenMP.txt",
     "licenses/THIRD-PARTY-NOTICES.txt",
   ]) {

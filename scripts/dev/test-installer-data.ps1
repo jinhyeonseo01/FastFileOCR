@@ -32,10 +32,11 @@ function Run-Uninstall($App, $Extra = @()) {
 }
 function Make-Data($Name) {
   $data = Join-Path $runRoot "$Name/data"
-  New-Item -ItemType Directory -Force -Path "$data/models","$data/workspaces" | Out-Null
+  New-Item -ItemType Directory -Force -Path "$data/models","$data/runtimes","$data/workspaces" | Out-Null
   Write-Text "$data/.fastfileocr-data" 'FastFileOCR data v1'
   Write-Text "$data/settings.json" '{"language":"ko","schemaVersion":1}'
   Write-Text "$data/models/keep.part" 'model'
+  Write-Text "$data/runtimes/keep.part" 'engine'
   Write-Text "$data/workspaces/keep.txt" 'document'
   Write-Text "$data/personal.txt" 'unmanaged'
   return $data
@@ -83,6 +84,7 @@ try {
   if ([IO.File]::ReadAllText("$data/settings.json") -ne 'saved settings') { throw 'Reinstall changed settings.' }
   if ((Run-Uninstall $app) -ne 0) { throw 'Default uninstall failed.' }
   Assert-Exists "$data/models/keep.part"
+  Assert-Exists "$data/runtimes/keep.part"
   Assert-Exists "$data/workspaces/keep.txt"
   Write-Host 'Passed: fresh backup, language, reinstall and default retention'
   foreach ($case in @('data-only','documents-only','both','update-retains')) {
@@ -94,8 +96,8 @@ try {
     if ($case -in @('documents-only','both','update-retains')) { $flags += '/REMOVEDOCUMENTS=1' }
     if ($case -eq 'update-retains') { $flags += '/UPDATE' }
     if ((Run-Uninstall $app $flags) -ne 0) { throw "Uninstall failed: $case" }
-    if ($case -in @('data-only','both')) { Assert-Missing "$data/models"; Assert-Missing "$data/settings.json" }
-    else { Assert-Exists "$data/models/keep.part"; Assert-Exists "$data/settings.json" }
+    if ($case -in @('data-only','both')) { Assert-Missing "$data/runtimes"; Assert-Missing "$data/models"; Assert-Missing "$data/settings.json" }
+    else { Assert-Exists "$data/runtimes/keep.part"; Assert-Exists "$data/models/keep.part"; Assert-Exists "$data/settings.json" }
     if ($case -in @('documents-only','both')) { Assert-Missing "$data/workspaces" }
     else { Assert-Exists "$data/workspaces/keep.txt" }
     Assert-Exists "$data/personal.txt"

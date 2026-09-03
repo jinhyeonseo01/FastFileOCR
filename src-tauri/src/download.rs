@@ -23,6 +23,7 @@ pub struct ModelFile {
     pub layout: bool,
     pub repository: Option<String>,
     pub revision: Option<String>,
+    pub url: Option<String>,
 }
 #[derive(Clone, Deserialize)]
 pub struct Manifest {
@@ -38,6 +39,7 @@ pub fn manifest() -> Manifest {
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Progress {
+    pub kind: String,
     pub status: String,
     pub file: String,
     pub downloaded: u64,
@@ -51,6 +53,7 @@ pub struct Downloads {
     state: Mutex<Progress>,
     // 0: running, 1: pause requested, 2: cancel requested. Partial files survive all three.
     control: AtomicU8,
+    paused_from: Mutex<String>,
 }
 impl Downloads {
     pub fn new(base: &Path, include_layout: bool) -> Self {
@@ -58,10 +61,25 @@ impl Downloads {
             .expect("Default model exists")
     }
     pub fn for_model(base: &Path, model_id: &str, include_layout: bool) -> Result<Self> {
-        let full_spec = crate::models::get(model_id)?.manifest();
+        let spec = crate::models::get(model_id)?.manifest();
+        let root = base.join(&spec.revision);
+        Ok(Self::from_spec(root, spec, include_layout, "model"))
+    }
+    pub(crate) fn for_files(root: PathBuf, files: Vec<ModelFile>) -> Self {
+        Self::from_spec(
+            root,
+            Manifest {
+                repository: String::new(),
+                revision: String::new(),
+                files,
+            },
+            true,
+            "runtime",
+        )
+    }
+    fn from_spec(root: PathBuf, full_spec: Manifest, include_layout: bool, kind: &str) -> Self {
         let mut spec = full_spec.clone();
         spec.files.retain(|f| !f.layout || include_layout);
-        let root = base.join(&spec.revision);
         let total = spec.files.iter().map(|f| f.bytes).sum();
         let downloaded = spec
             .files
@@ -83,10 +101,11 @@ impl Downloads {
         } else {
             "idle"
         };
-        Ok(Self {
+        Self {
             root,
             spec: full_spec,
             state: Mutex::new(Progress {
+                kind: kind.into(),
                 status: status.into(),
                 file: String::new(),
                 downloaded,
@@ -95,7 +114,8 @@ impl Downloads {
                 error: None,
             }),
             control: AtomicU8::new(0),
-        })
+            paused_from: Mutex::new("downloading".into()),
+        }
     }
     pub fn directory(&self) -> &Path {
         &self.root
@@ -107,9 +127,16 @@ impl Downloads {
         self.control.store(0, Ordering::SeqCst);
     }
     pub fn pause(&self) {
-        if ["downloading", "checking"].contains(&self.snapshot().status.as_str()) {
-            self.control.store(1, Ordering::SeqCst);
-            self.update("pausing", None, None, 0);
+        let status = self.snapshot().status;
+        if ["downloading", "checking", "extracting"].contains(&status.as_str()) {
+            *self.paused_from.lock().unwrap_or_else(|e| e.into_inner()) = status;
+            if self
+                .control
+                .compare_exchange(0, 1, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok()
+            {
+                self.update("pausing", None, None, 0);
+            }
         }
     }
     pub fn resume(&self) {
@@ -132,12 +159,21 @@ impl Downloads {
         state.bytes_per_second = speed;
         state.error = None;
     }
-    fn checkpoint(&self, notify: &impl Fn(Progress)) -> Result<()> {
+    pub(crate) fn checkpoint(&self, notify: &impl Fn(Progress)) -> Result<()> {
         if self.control.load(Ordering::SeqCst) == 1 {
             self.update("paused", None, None, 0);
             notify(self.snapshot());
             while self.control.load(Ordering::SeqCst) == 1 {
                 thread::sleep(Duration::from_millis(100));
+            }
+            if self.control.load(Ordering::SeqCst) == 0 {
+                let stage = self
+                    .paused_from
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .clone();
+                self.update(&stage, None, None, 0);
+                notify(self.snapshot());
             }
         }
         if self.control.load(Ordering::SeqCst) == 2 {
@@ -162,8 +198,16 @@ impl Downloads {
         }
         Ok(format!("{:x}", hash.finalize()) == model.sha256)
     }
-    pub fn ensure(&self, include_layout: bool, notify: impl Fn(Progress)) -> Result<()> {
-        let result = self.ensure_inner(include_layout, &notify);
+    pub(crate) fn stage(&self, status: &str, notify: &impl Fn(Progress)) {
+        self.update(
+            status,
+            None,
+            (status == "ready").then(|| self.snapshot().total),
+            0,
+        );
+        notify(self.snapshot());
+    }
+    pub(crate) fn report_error(&self, result: &Result<()>, notify: &impl Fn(Progress)) {
         if let Err(e) = &result {
             let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
             state.status = if self.control.load(Ordering::SeqCst) == 2 {
@@ -177,6 +221,10 @@ impl Downloads {
             drop(state);
             notify(self.snapshot());
         }
+    }
+    pub fn ensure(&self, include_layout: bool, notify: impl Fn(Progress)) -> Result<()> {
+        let result = self.ensure_inner(include_layout, &notify);
+        self.report_error(&result, &notify);
         result
     }
     fn ensure_inner(&self, include_layout: bool, notify: &impl Fn(Progress)) -> Result<()> {
@@ -198,7 +246,7 @@ impl Downloads {
                 })
                 .sum();
         }
-        // Requests contain only fixed public model URLs, never document contents.
+        // Requests contain only pinned public model/runtime URLs, never document contents.
         let client = Client::builder()
             .connect_timeout(Duration::from_secs(15))
             .timeout(Duration::from_secs(30))
@@ -223,12 +271,14 @@ impl Downloads {
                 fs::remove_file(&partial).map_err(err)?;
             }
             let mut offset = size(&partial).unwrap_or(0);
-            let url = format!(
-                "https://huggingface.co/{}/resolve/{}/{}",
-                model.repository.as_ref().unwrap_or(&spec.repository),
-                model.revision.as_ref().unwrap_or(&spec.revision),
-                model.name
-            );
+            let url = model.url.clone().unwrap_or_else(|| {
+                format!(
+                    "https://huggingface.co/{}/resolve/{}/{}",
+                    model.repository.as_ref().unwrap_or(&spec.repository),
+                    model.revision.as_ref().unwrap_or(&spec.revision),
+                    model.name
+                )
+            });
             let mut failures = 0;
             while offset < model.bytes {
                 self.checkpoint(notify)?;
@@ -436,5 +486,77 @@ mod tests {
         restored.cancel();
         assert!(restored.checkpoint(&|_| {}).is_err());
         assert_eq!(fs::read_dir(restored.directory()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn runtime_download_resumes_a_partial_archive_over_http() {
+        use std::net::TcpListener;
+        let dir = tempfile::tempdir().unwrap();
+        let data = b"verified GPU archive contents";
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/engine.zip", listener.local_addr().unwrap());
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut request = Vec::new();
+            let mut byte = [0];
+            while !request.ends_with(b"\r\n\r\n") {
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            assert!(String::from_utf8_lossy(&request)
+                .to_lowercase()
+                .contains("range: bytes=7-"));
+            write!(stream, "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 7-{}/{}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", data.len()-1, data.len(), data.len()-7).unwrap();
+            stream.write_all(&data[7..]).unwrap();
+        });
+        fs::write(dir.path().join("engine.zip.part"), &data[..7]).unwrap();
+        let spec = ModelFile {
+            name: "engine.zip".into(),
+            bytes: data.len() as u64,
+            sha256: format!("{:x}", Sha256::digest(data)),
+            url: Some(url),
+            layout: false,
+            repository: None,
+            revision: None,
+        };
+        let dl = Downloads::for_files(dir.path().into(), vec![spec]);
+        assert_eq!(dl.snapshot().kind, "runtime");
+        assert_eq!(dl.snapshot().status, "interrupted");
+        dl.ensure(true, |_| {}).unwrap();
+        server.join().unwrap();
+        assert_eq!(fs::read(dir.path().join("engine.zip")).unwrap(), data);
+        assert!(!dir.path().join("engine.zip.part").exists());
+        assert_eq!(dl.snapshot().status, "ready");
+    }
+    #[test]
+    fn pause_resumes_installation_stage_and_cancel_preserves_partials() {
+        let dir = tempfile::tempdir().unwrap();
+        let dl = Downloads::for_files(dir.path().into(), vec![]);
+        fs::write(dir.path().join("engine.part"), b"keep").unwrap();
+        dl.stage("extracting", &|_| {});
+        dl.pause();
+        dl.checkpoint(&|p| {
+            if p.status == "paused" {
+                dl.resume();
+            }
+        })
+        .unwrap();
+        assert_eq!(dl.snapshot().status, "extracting");
+        dl.pause();
+        assert!(dl
+            .checkpoint(&|p| {
+                if p.status == "paused" {
+                    dl.cancel();
+                }
+            })
+            .is_err());
+        assert_eq!(fs::read(dir.path().join("engine.part")).unwrap(), b"keep");
+        dl.stage("extracting", &|_| {});
+        dl.pause();
+        assert_eq!(dl.control.load(Ordering::SeqCst), 2);
+        assert!(dl.checkpoint(&|_| {}).is_err());
     }
 }

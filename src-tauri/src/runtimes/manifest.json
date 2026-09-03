@@ -1,0 +1,36 @@
+{
+  "version": "b10621",
+  "cudaDriverMinimum": 13000,
+  "files": {
+    "cpu": [
+      {
+        "name": "llama-b10621-bin-win-cpu-x64.zip",
+        "bytes": 18068018,
+        "sha256": "0e8b65e650e369f70f8307d890508886f171ef4fb00facccddd4a1b7ffdaca51",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b10621/llama-b10621-bin-win-cpu-x64.zip"
+      }
+    ],
+    "vulkan": [
+      {
+        "name": "llama-b10621-bin-win-vulkan-x64.zip",
+        "bytes": 34403304,
+        "sha256": "2672d85bf87c8280d94dee01eb6a86280046878f70a07d786a93637fa9081163",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b10621/llama-b10621-bin-win-vulkan-x64.zip"
+      }
+    ],
+    "cuda": [
+      {
+        "name": "llama-b10621-bin-win-cuda-13.3-x64.zip",
+        "bytes": 146446450,
+        "sha256": "23549ccc00b6a18d74348e95d4789f7e96c9efb11cf6e3f1b185baef34d7449f",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b10621/llama-b10621-bin-win-cuda-13.3-x64.zip"
+      },
+      {
+        "name": "cudart-llama-bin-win-cuda-13.3-x64.zip",
+        "bytes": 390970417,
+        "sha256": "1462a050eb4c684921ba51dcc4cc488a036674c3e73e9945ee705b854808d03e",
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b10621/cudart-llama-bin-win-cuda-13.3-x64.zip"
+      }
+    ]
+  }
+}

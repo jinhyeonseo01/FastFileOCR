@@ -71,6 +71,7 @@ export type Page = {
   regions: Region[];
 };
 export type DownloadProgress = {
+  kind: "model" | "runtime";
   status: string;
   file: string;
   downloaded: number;

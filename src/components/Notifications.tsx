@@ -4,22 +4,24 @@ import type { WorkspaceController } from "../hooks/useWorkspace";
 export function Notifications({ w }: { w: WorkspaceController }) {
   const { t } = w,
     d = w.data.download,
-    active = ["checking", "downloading", "pausing", "paused"].includes(
-      d.status,
-    ),
-    u = w.data.update;
+    active = [
+      "checking",
+      "downloading",
+      "pausing",
+      "paused",
+      "extracting",
+    ].includes(d.status),
+    u = w.data.update,
+    title = d.kind === "runtime" ? "runtimeDownloadTitle" : "downloadTitle";
   return (
     <>
       <div className="notification-stack">
         {!w.downloadHidden && !["idle", "ready"].includes(d.status) && (
-          <section
-            className="notification"
-            role="region"
-            aria-label={t("downloadTitle")}
-          >
+          <section className="notification" role="region" aria-label={t(title)}>
             <div className="notification-heading">
               <Download size={18} />
               <strong>
+                {t(title)} ·{" "}
                 {t(d.status === "error" ? "downloadError" : d.status)}
               </strong>
               {!active && (
@@ -33,7 +35,7 @@ export function Notifications({ w }: { w: WorkspaceController }) {
             </div>
             <p className="filename">{d.file}</p>
             <progress
-              aria-label={t("downloadTitle")}
+              aria-label={t(title)}
               value={d.downloaded}
               max={d.total || 1}
             />

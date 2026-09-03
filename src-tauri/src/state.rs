@@ -17,6 +17,7 @@ use tauri::Emitter;
 pub struct AppState {
     pub(crate) store: Mutex<Store>,
     pub(crate) engine: Engine,
+    pub(crate) runtimes: crate::runtimes::Runtimes,
     pub(crate) downloads: Mutex<Arc<download::Downloads>>,
     pub(crate) preferences: Mutex<configuration::Preferences>,
     pub(crate) data_root: PathBuf,
@@ -27,6 +28,9 @@ pub struct AppState {
     pub(crate) logs: PathBuf,
 }
 impl AppState {
+    pub(crate) fn current_download(&self) -> Arc<download::Downloads> {
+        self.runtimes.active().unwrap_or_else(|| self.downloads())
+    }
     pub(crate) fn downloads(&self) -> Arc<download::Downloads> {
         self.downloads
             .lock()
@@ -58,7 +62,7 @@ pub(crate) fn snapshot_value(state: &AppState) -> Result<Snapshot> {
         resources_ready: ["runtime/cpu/llama-server.exe", "runtime/pdfium/pdfium.dll"]
             .iter()
             .all(|p| state.resources.join(p).is_file()),
-        download: state.downloads().snapshot(),
+        download: state.current_download().snapshot(),
         preferences: state.preferences.lock().map_err(err)?.clone(),
         data_root: state.data_root.to_string_lossy().into(),
         models: models::descriptors(),

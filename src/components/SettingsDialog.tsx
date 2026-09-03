@@ -176,6 +176,7 @@ export function SettingsDialog({ w }: { w: WorkspaceController }) {
                   </select>
                 </label>
                 <p className="field-hint">{t("cudaHint")}</p>
+                <p className="field-hint">{t("runtimeDownloadHint")}</p>
                 <h4>{t("modelOptions")}</h4>
                 {model && (
                   <ModelOptions

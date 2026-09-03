@@ -113,6 +113,7 @@ pub(crate) async fn paste_image(app: tauri::AppHandle) -> Result<()> {
 pub(crate) fn update_settings(state: State<AppState>, settings: Settings) -> Result<()> {
     let _busy = begin(&state)?;
     settings.validate()?;
+    state.runtimes.reset();
     let mut store = state.store.lock().map_err(err)?;
     *state.downloads.lock().map_err(err)? = Arc::new(download::Downloads::for_model(
         &state.data_root.join("models"),
@@ -162,6 +163,7 @@ pub(crate) async fn preview(app: tauri::AppHandle, page_id: String) -> Result<St
 #[tauri::command]
 pub(crate) fn cancel_scan(state: State<AppState>) {
     state.downloads().cancel();
+    state.runtimes.cancel();
     state.engine.cancel();
     message(&state, crate::i18n::text("stopping"));
 }
@@ -169,12 +171,12 @@ pub(crate) fn cancel_scan(state: State<AppState>) {
 #[tauri::command]
 pub(crate) fn pause_download(app: tauri::AppHandle) {
     let state = app.state::<AppState>();
-    state.downloads().pause();
-    let _ = app.emit("model-download", state.downloads().snapshot());
+    state.current_download().pause();
+    let _ = app.emit("model-download", state.current_download().snapshot());
 }
 #[tauri::command]
 pub(crate) fn resume_download(state: State<AppState>) {
-    state.downloads().resume();
+    state.current_download().resume();
 }
 
 #[tauri::command]
@@ -203,6 +205,7 @@ pub(crate) fn start_scan(app: tauri::AppHandle, page_ids: Option<Vec<String>>) -
     };
     state.engine.cancel.store(false, Ordering::SeqCst);
     state.downloads().reset();
+    state.runtimes.reset();
     // Transfer ownership of the busy state to the worker.
     std::mem::forget(busy);
     tauri::async_runtime::spawn_blocking(move || {

@@ -10,7 +10,7 @@ Region detection is enabled by default for new settings; a saved opt-out is reta
 
 The layout model runs through ONNX Runtime on CPU. Its graph is exported from the pinned Transformers implementation and references official Safetensors weights by byte offset. The graph contains no trained weights. Export validation compares PyTorch and ONNX Runtime outputs. Runtime installations require no Python.
 
-llama.cpp provides CPU, Vulkan and CUDA backends. Automatic mode tries CUDA, then Vulkan, then CPU. Explicit device selection reports a startup failure instead of silently changing the selected backend. Sidecars listen only on loopback, require a per-session key, and are owned by the Rust process. A Windows Job Object cleans them up when the parent exits.
+llama.cpp provides CPU, Vulkan and CUDA backends. CPU is bundled. Automatic mode probes the system GPU drivers, chooses CUDA when compatible or otherwise Vulkan, and falls back to CPU if the selected GPU backend fails. It downloads at most one GPU backend per scan. Explicit device selection reports a startup failure instead of silently changing the selected backend. Sidecars listen only on loopback, require a per-session key, and are owned by the Rust process. A Windows Job Object cleans them up when the parent exits.
 
 ## Model boundary
 
@@ -25,6 +25,8 @@ Workspaces hold copied source files, normalized page images, thumbnails and save
 ## Downloads and exports
 
 The model manifest pins repository revisions, file lengths and SHA-256 values. Partial downloads use HTTP Range with Content-Range validation. Pause, stop and restart retain .part files. Files receive their final names only after verification.
+
+GPU engines use the same transfer and control code, with a runtime progress category in the existing download popup. A separate runtime manifest pins engine archives; CPU packaging reads the same manifest. GPU archives are unpacked into a temporary directory, reject unsafe paths and duplicate basenames, and are published only after all required DLLs and the executable are present. A per-file hash receipt verifies reuse. Engines stay in the selected user data root across application updates and settings resets; opt-in data removal also removes engines.
 
 JSON preserves page settings, raw OCR, normalized text, structure and region coordinates. HTML is sanitized. Preview and exported documents cannot execute OCR-provided scripts or load remote images. Export does not attempt exact page-layout reconstruction.
 

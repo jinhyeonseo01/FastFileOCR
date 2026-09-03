@@ -30,6 +30,7 @@ const empty: Snapshot = {
   message: "",
   resourcesReady: false,
   download: {
+    kind: "model",
     status: "idle",
     file: "",
     downloaded: 0,
@@ -329,7 +330,9 @@ export function useWorkspace() {
       listen<DownloadProgress>("model-download", ({ payload }) => {
         if (active) {
           setData((current) => ({ ...current, download: payload }));
-          if (["checking", "downloading"].includes(payload.status))
+          if (
+            ["checking", "downloading", "extracting"].includes(payload.status)
+          )
             setDownloadHidden(false);
         }
       }),

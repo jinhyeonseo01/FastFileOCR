@@ -13,6 +13,46 @@ fn main() {
 }
 fn execute() -> Result<(), String> {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
+    if args.first().is_some_and(|s| s == "--prepare-runtime") {
+        let device = args.get(1).ok_or(
+            "usage: smoke --prepare-runtime cpu|vulkan|cuda [DATA_DIR] [CANCEL_AFTER_BYTES]",
+        )?;
+        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let data = args
+            .get(2)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| base.join("../.cache/runtime-smoke"));
+        let runtime = fastfileocr_core::runtimes::Runtimes::new(&data);
+        let cancel_after = args.get(3).and_then(|v| v.parse::<u64>().ok());
+        println!(
+            "Hardware: {:?}",
+            fastfileocr_core::runtimes::hardware::Hardware::detect()
+        );
+        let directory = runtime.ensure(&base.join("resources"), device, |p| {
+            println!("{} {} {}/{}", p.kind, p.status, p.downloaded, p.total);
+            if p.status == "downloading" && cancel_after.is_some_and(|n| p.downloaded >= n) {
+                runtime.cancel();
+            }
+        })?;
+        println!("Ready: {}", directory.display());
+        let mut command = std::process::Command::new(directory.join("llama-server.exe"));
+        command.arg("--version").current_dir(&directory);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x08000000);
+        }
+        let output = command.output().map_err(|e| e.to_string())?;
+        println!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        if !output.status.success() {
+            return Err("Runtime executable failed".into());
+        }
+        return Ok(());
+    }
     if args.first().is_some_and(|s| s == "--check-updates") {
         let repository = args
             .get(1)
@@ -57,7 +97,9 @@ fn execute() -> Result<(), String> {
         ..Settings::default()
     };
     let downloads = fastfileocr_core::download::Downloads::new(
-        &root.join("../.cache/smoke-models"),
+        &std::env::var_os("FASTFILEOCR_SMOKE_MODELS")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| root.join("../.cache/smoke-models")),
         settings.use_layout,
     );
     downloads.ensure(settings.use_layout, |p| {
@@ -72,7 +114,9 @@ fn execute() -> Result<(), String> {
             downloads.directory(),
             &store.root.join("logs"),
             &settings.device,
-            &settings.model_id
+            &settings.model_id,
+            &fastfileocr_core::runtimes::Runtimes::new(&root.join("../.cache/runtime-smoke")),
+            |p| println!("Runtime: {} {} / {}", p.status, p.downloaded, p.total),
         )?
     );
     for index in 0..store.project.pages.len() {

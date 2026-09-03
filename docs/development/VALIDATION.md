@@ -5,15 +5,17 @@ Date: September 3, 2026. Windows x64 development machine; NVIDIA RTX 4080 SUPER,
 ## Source and packaging
 
 - TypeScript checks and the Vite production build pass. Markdown rendering is a separate lazy-loaded chunk.
-- Rust checks, formatting and 25 unit tests pass for v0.1.1.
+- Rust checks, formatting and 30 unit tests pass for v0.1.2.
 - English, Korean and Japanese catalog keys, placeholders and source references pass validation.
-- The bundle verifier checks 177 prepared files and excludes model weights. CUDA, CPU, Vulkan, PDFium and ONNX Runtime are included.
+- The bundle verifier checks 92 prepared files and excludes model weights and GPU engines. CPU, PDFium, ONNX Runtime and MSVC libraries are bundled; CUDA and Vulkan are downloaded on demand.
 - GitHub Actions YAML parses; tag versioning, release permissions, current-version asset selection and the installer data test gate are configured.
 - Model weights, prepared runtimes, build outputs and local workspaces are excluded from Git.
 
 Rust tests cover persistence/recovery, traversal protection, partial downloads, layout coordinates and reading order, raw text preservation, HTML sanitization, table normalization, structured export, model settings, preference retention, default update repository, fresh-start behavior and repeated PDF imports.
 
-The v0.1.1 executable metadata and rendered NSIS script use FastFileOCR and version 0.1.1. Tracked files contain no retired application branding or installer configuration; obsolete local Inno tools and one-time editing scripts were removed. Model weights, user documents and active build dependencies were retained.
+For v0.1.2, a real GitHub Vulkan download was cancelled after 10,502,144 bytes and resumed in a fresh process. Hash verification, extraction, archive cleanup and subsequent reuse without another download passed. CUDA archives from the existing verified build cache were installed through the same runtime manager. Driver detection reported CUDA and Vulkan available on the test PC.
+
+The public Korean capture was recognized through automatic selection (CUDA), explicit Vulkan and bundled CPU. All three returned the expected text and document number without warnings. Tests cover the one-GPU selection policy, partial HTTP downloads, pause/resume/cancel, archive traversal and duplicate rejection, cache reuse/corruption repair and runtime retention.
 
 ## App checks from development
 
@@ -34,11 +36,11 @@ The Tauri NSIS template compiles with English, Korean and Japanese pages. Its da
 
 The executable harness uses the rendered production NSIS template, pages, hooks and helper. Only the payload, WebView2 bootstrap and fixture identity are substituted. In isolated directories and registry keys it verifies:
 
-- Fresh settings backups retain downloaded models and documents.
+- Fresh settings backups retain downloaded models, GPU engines and documents.
 - Installer language and data location are recorded correctly.
 - Reinstalling preserves saved settings byte-for-byte.
 - Default silent uninstall preserves user data.
-- Settings/models and document workspaces can be deleted independently.
+- Settings/models/GPU engines and document workspaces can be deleted independently.
 - Update-triggered uninstall preserves data even if cleanup flags are present.
 - Unmanaged files remain untouched.
 - Populated parent folders resolve to a dedicated child; occupied unowned children are rejected without a popup in silent mode.
@@ -47,7 +49,7 @@ Run npm run installer:test after building the NSIS installer. The release workfl
 
 ## Scope and limitations
 
-- The remote is https://github.com/jinhyeonseo01/FastFileOCR. The v0.1.1 updater was exercised against its real API: no public release exists, and the app reports the unreleased state without an error. A tag push, hosted-runner build and installation of a downloaded GitHub release have not been exercised. Local HTTP fixtures cover release discovery, missing releases versus inaccessible repositories, and matching installer/checksum assets.
+- The remote is https://github.com/jinhyeonseo01/FastFileOCR. The v0.1.1 tag started its hosted release workflow. This record covers local v0.1.2 validation; installation of an update downloaded from a published GitHub release has not been exercised. Release discovery and installer/checksum selection have local HTTP-fixture coverage.
 - No clean Windows VM was used. WebView2 was already present, so installation of WebView2 on a machine without it was not exercised.
 - Native wizard layout/keyboard navigation was not automated because the Windows UI helper could not start. Installer data logic and actual command-line installation were exercised separately.
 - General document detection can miss stylized headings or unusual layouts; whole-page rescanning remains available. Comic-specific accuracy and reading order have not been benchmarked.

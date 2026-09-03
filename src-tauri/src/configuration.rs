@@ -207,7 +207,7 @@ mod tests {
     fn fresh_settings_preserve_models_and_documents() {
         let dir = tempfile::tempdir().unwrap();
         ensure_owned(dir.path()).unwrap();
-        for name in ["models", "workspaces"] {
+        for name in ["models", "runtimes", "workspaces"] {
             fs::create_dir(dir.path().join(name)).unwrap();
             fs::write(dir.path().join(name).join("retained.part"), b"keep").unwrap();
         }
@@ -217,7 +217,7 @@ mod tests {
             loaded.github_repository,
             crate::updates::default_repository()
         );
-        for name in ["models", "workspaces"] {
+        for name in ["models", "runtimes", "workspaces"] {
             assert_eq!(
                 fs::read(dir.path().join(name).join("retained.part")).unwrap(),
                 b"keep"
