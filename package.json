@@ -1,6 +1,6 @@
 {
   "name": "fastfileocr",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -39,5 +39,9 @@
     "vite": "^8.2.2"
   },
   "description": "Simple / Fast / Accurate — Rust OCR powered by PaddleOCR-VL 1.6",
-  "license": "CC-BY-4.0"
+  "license": "CC-BY-4.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jinhyeonseo01/FastFileOCR.git"
+  }
 }

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "FastFileOCR",
-  "version": "0.1.0",
-  "identifier": "com.glyph.localocr",
+  "version": "0.1.1",
+  "identifier": "io.github.jinhyeonseo01.fastfileocr",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build && node scripts/build/prepare-nsis.mjs",
@@ -27,7 +27,10 @@
     "active": true,
     "shortDescription": "Offline document OCR with PaddleOCR-VL-1.6",
     "category": "Productivity",
-    "icon": ["icons/icon.ico", "icons/icon.png"],
+    "icon": [
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
     "resources": {
       "resources/runtime/": "resources/runtime/",
       "resources/layout/": "resources/layout/",
@@ -57,7 +60,11 @@
       "nsis": {
         "template": "../.cache/installer/installer.nsi",
         "installerHooks": "../installer/nsis/hooks.nsh",
-        "languages": ["English", "Korean", "Japanese"],
+        "languages": [
+          "English",
+          "Korean",
+          "Japanese"
+        ],
         "displayLanguageSelector": true,
         "installMode": "currentUser",
         "compression": "lzma",
@@ -65,7 +72,9 @@
         "uninstallerIcon": "icons/icon.ico"
       }
     },
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "publisher": "FastFileOCR",
     "copyright": "FastFileOCR — CC BY 4.0"
   }

@@ -186,7 +186,6 @@ pub fn prepare(selected: &Path, app: &Path, fresh: bool) -> Result<PathBuf> {
             fs::create_dir_all(&backups)?;
             fs::rename(settings, backups.join(format!("{nonce}.json")))?;
         }
-        fs::write(root.join(".fresh-settings"), "1")?;
     }
     Ok(root)
 }
@@ -203,7 +202,6 @@ pub fn remove(root: &Path, data: bool, documents: bool) -> Result<()> {
             "models",
             "logs",
             "updates",
-            ".fresh-settings",
         ]);
     }
     if documents {
@@ -263,7 +261,6 @@ mod tests {
             .unwrap()
             .path();
         assert_eq!(fs::read_to_string(backup).unwrap(), r#"{"language":"ko"}"#);
-        assert!(root.join(".fresh-settings").exists());
         assert!(root.join("models/keep.part").exists());
         assert!(root.join("workspaces/keep.part").exists());
     }

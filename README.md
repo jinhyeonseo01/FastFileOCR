@@ -70,6 +70,10 @@ Updates can be checked from Settings, with an optional notification at startup. 
 
 The installer includes the required runtimes; you do not need Rust, Python, Node.js or LM Studio.
 
+## Contributing
+
+Contributions, including those assisted by AI, are welcome. Discuss new features or structural changes in an Issue before starting. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full PR guidelines.
+
 ## License
 
 Original project code and documentation are licensed under **[CC BY 4.0](LICENSE)**. See [NOTICE.txt](NOTICE.txt) for attribution. Third-party models and libraries retain their own licenses.

@@ -2,6 +2,9 @@
 /node_modules/
 /dist/
 *.tsbuildinfo
+__pycache__/
+*.py[cod]
+.venv/
 
 # Native build outputs and prepared third-party assets
 /src-tauri/target/
@@ -16,6 +19,8 @@
 *.safetensors
 *.onnx
 *.part
+/models/
+/data/
 
 # Local workspaces, test output and build caches
 /.cache/

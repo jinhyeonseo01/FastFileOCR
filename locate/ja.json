@@ -159,7 +159,7 @@
   "invalidPath": "保存先が正しくありません。",
   "invalidProjectPath": "作業内のパスが正しくありません。",
   "outsideProject": "作業フォルダー外のファイルにはアクセスできません。",
-  "invalidProject": "対応する作業フォルダーを選択してください。旧形式の文書は元ファイルから再追加できます。",
+  "invalidProject": "FastFileOCRの作業フォルダーを選択してください。",
   "interruptedPage": "スキャンが中断されました。再実行できます。",
   "pageMissing": "ページが見つかりません。",
   "pageLimit": "1作業につき最大1,000ページです。新しい作業を作成してください。",
@@ -282,5 +282,6 @@
   "installDataResolved": "データの保存先:",
   "uninstallDataTitle": "削除するデータを選択",
   "uninstallDataHint": "チェックを外した項目は再インストールに備えて保持されます。",
-  "installWindowsRequired": "FastFileOCRにはWindows 10以降が必要です。"
+  "installWindowsRequired": "FastFileOCRにはWindows 10以降が必要です。",
+  "updateNoRelease": "公開リリースはまだありません。"
 }

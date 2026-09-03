@@ -63,6 +63,12 @@ pub struct Updater {
     release: Mutex<Option<Release>>,
     installer: Mutex<Option<PathBuf>>,
 }
+pub fn default_repository() -> &'static str {
+    option_env!("FASTFILEOCR_GITHUB_REPOSITORY")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("jinhyeonseo01/FastFileOCR")
+}
 pub fn valid_repository(repository: &str) -> bool {
     let parts: Vec<_> = repository.split('/').collect();
     parts.len() == 2
@@ -102,9 +108,12 @@ fn parse_release(json: &[u8], repository: &str, current: &str) -> Result<Option<
         .iter()
         .find(|a| a.name == format!("{name}.sha256"))
         .ok_or_else(|| i18n::text("updateNoChecksum"))?;
-    let prefix = format!("https://github.com/{repository}/releases/download/");
-    if !exe.browser_download_url.starts_with(&prefix)
-        || !sha.browser_download_url.starts_with(&prefix)
+    let prefix = format!(
+        "https://github.com/{repository}/releases/download/{}/",
+        api.tag_name
+    );
+    if exe.browser_download_url != format!("{prefix}{name}")
+        || sha.browser_download_url != format!("{prefix}{name}.sha256")
         || exe.size == 0
         || exe.size > 4 * 1024 * 1024 * 1024
     {
@@ -126,36 +135,55 @@ impl Updater {
             .clone()
     }
     pub fn check(&self, repository: &str) -> Result<()> {
+        self.check_at(repository, "https://api.github.com")
+    }
+    fn check_at(&self, repository: &str, api: &str) -> Result<()> {
         if !valid_repository(repository) {
             return Err(i18n::text("invalidRepository"));
         }
-        let response = client()?
-            .get(format!(
-                "https://api.github.com/repos/{repository}/releases/latest"
-            ))
+        let client = client()?;
+        let response = client
+            .get(format!("{api}/repos/{repository}/releases/latest"))
             .header("Accept", "application/vnd.github+json")
+            .timeout(Duration::from_secs(30))
             .send()
-            .map_err(err)?
-            .error_for_status()
             .map_err(err)?;
-        let mut bytes = Vec::new();
-        response
-            .take(2 * 1024 * 1024)
-            .read_to_end(&mut bytes)
-            .map_err(err)?;
-        let release = parse_release(&bytes, repository, env!("CARGO_PKG_VERSION"))?;
-        let mut state = self.progress.lock().map_err(err)?;
-        state.status = if release.is_some() {
-            "available"
+        let (release, status) = if response.status() == reqwest::StatusCode::NOT_FOUND {
+            // A missing release is normal for a new repository. A missing repository is an error.
+            client
+                .get(format!("{api}/repos/{repository}"))
+                .header("Accept", "application/vnd.github+json")
+                .timeout(Duration::from_secs(30))
+                .send()
+                .map_err(err)?
+                .error_for_status()
+                .map_err(err)?;
+            (None, "unreleased")
         } else {
-            "current"
-        }
-        .into();
-        state.version = release
-            .as_ref()
-            .map(|r| r.version.clone())
-            .unwrap_or_default();
-        state.error = None;
+            let mut bytes = Vec::new();
+            response
+                .error_for_status()
+                .map_err(err)?
+                .take(2 * 1024 * 1024)
+                .read_to_end(&mut bytes)
+                .map_err(err)?;
+            let release = parse_release(&bytes, repository, env!("CARGO_PKG_VERSION"))?;
+            let status = if release.is_some() {
+                "available"
+            } else {
+                "current"
+            };
+            (release, status)
+        };
+        let mut state = self.progress.lock().map_err(err)?;
+        *state = Progress {
+            status: status.into(),
+            version: release
+                .as_ref()
+                .map(|r| r.version.clone())
+                .unwrap_or_default(),
+            ..Progress::default()
+        };
         *self.release.lock().map_err(err)? = release;
         *self.installer.lock().map_err(err)? = None;
         Ok(())
@@ -285,7 +313,7 @@ mod tests {
     fn validates_release_origin_version_and_checksum_pair() {
         let json = serde_json::json!({"tag_name":"v2.1.0","draft":false,"prerelease":false,"assets":[
             {"name":"FastFileOCR_2.1.0_x64-setup.exe","browser_download_url":"https://github.com/example/FastFileOCR/releases/download/v2.1.0/FastFileOCR_2.1.0_x64-setup.exe","size":500},
-            {"name":"FastFileOCR_2.1.0_x64-setup.exe.sha256","browser_download_url":"https://github.com/example/FastFileOCR/releases/download/v2.1.0/a.sha256","size":100}]});
+            {"name":"FastFileOCR_2.1.0_x64-setup.exe.sha256","browser_download_url":"https://github.com/example/FastFileOCR/releases/download/v2.1.0/FastFileOCR_2.1.0_x64-setup.exe.sha256","size":100}]});
         let bytes = serde_json::to_vec(&json).unwrap();
         assert!(parse_release(&bytes, "example/FastFileOCR", "2.0.0")
             .unwrap()
@@ -294,7 +322,116 @@ mod tests {
             .unwrap()
             .is_none());
         assert!(parse_release(&bytes, "other/repo", "2.0.0").is_err());
+        let mut wrong = json.clone();
+        wrong["assets"][1]["browser_download_url"] = serde_json::json!(
+            "https://github.com/example/FastFileOCR/releases/download/v2.0.0/FastFileOCR_2.1.0_x64-setup.exe.sha256"
+        );
+        assert!(parse_release(
+            &serde_json::to_vec(&wrong).unwrap(),
+            "example/FastFileOCR",
+            "2.0.0"
+        )
+        .is_err());
+        wrong = json.clone();
+        wrong["assets"].as_array_mut().unwrap().pop();
+        assert!(parse_release(
+            &serde_json::to_vec(&wrong).unwrap(),
+            "example/FastFileOCR",
+            "2.0.0"
+        )
+        .is_err());
+        wrong = json.clone();
+        wrong["prerelease"] = serde_json::json!(true);
+        assert!(parse_release(
+            &serde_json::to_vec(&wrong).unwrap(),
+            "example/FastFileOCR",
+            "2.0.0"
+        )
+        .unwrap()
+        .is_none());
         assert!(!valid_repository("../repo"));
         assert!(!valid_repository("https://github.com/a/b"));
+    }
+
+    fn mock_api(
+        responses: Vec<(&'static str, u16, String)>,
+    ) -> (String, std::thread::JoinHandle<()>) {
+        use std::net::TcpListener;
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = format!("http://{}", listener.local_addr().unwrap());
+        let handle = std::thread::spawn(move || {
+            for (path, status, body) in responses {
+                let (mut stream, _) = listener.accept().unwrap();
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let mut request = Vec::new();
+                let mut byte = [0];
+                while !request.ends_with(b"\r\n\r\n") {
+                    stream.read_exact(&mut byte).unwrap();
+                    request.push(byte[0]);
+                    assert!(request.len() < 8192);
+                }
+                assert!(
+                    String::from_utf8_lossy(&request).starts_with(&format!("GET {path} HTTP/1.1"))
+                );
+                write!(stream, "HTTP/1.1 {status} Response\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+            }
+        });
+        (address, handle)
+    }
+    #[test]
+    fn no_public_release_is_distinct_from_an_unavailable_repository() {
+        for (repo_status, succeeds) in [(200, true), (404, false), (403, false)] {
+            let (api, server) = mock_api(vec![
+                (
+                    "/repos/example/FastFileOCR/releases/latest",
+                    404,
+                    "{}".into(),
+                ),
+                ("/repos/example/FastFileOCR", repo_status, "{}".into()),
+            ]);
+            let updater = Updater::default();
+            let result = updater.check_at("example/FastFileOCR", &api);
+            server.join().unwrap();
+            assert_eq!(result.is_ok(), succeeds);
+            if succeeds {
+                assert_eq!(updater.snapshot().status, "unreleased");
+                assert!(updater.snapshot().error.is_none());
+                assert!(updater.release.lock().unwrap().is_none());
+            }
+        }
+    }
+    #[test]
+    fn latest_release_check_exposes_matching_installer_and_clears_stale_download() {
+        let version = "99.0.0";
+        let name = format!("FastFileOCR_{version}_x64-setup.exe");
+        let base = format!("https://github.com/example/FastFileOCR/releases/download/v{version}");
+        let body = serde_json::json!({
+            "tag_name": format!("v{version}"), "draft": false, "prerelease": false,
+            "assets": [
+                {"name": name, "browser_download_url": format!("{base}/{name}"), "size": 500},
+                {"name": format!("{name}.sha256"), "browser_download_url": format!("{base}/{name}.sha256"), "size": 100}
+            ]
+        }).to_string();
+        let (api, server) = mock_api(vec![(
+            "/repos/example/FastFileOCR/releases/latest",
+            200,
+            body,
+        )]);
+        let updater = Updater::default();
+        updater.progress.lock().unwrap().downloaded = 500;
+        *updater.installer.lock().unwrap() = Some(PathBuf::from("outdated.exe"));
+        updater.check_at("example/FastFileOCR", &api).unwrap();
+        server.join().unwrap();
+        let progress = updater.snapshot();
+        assert_eq!(progress.status, "available");
+        assert_eq!(progress.version, version);
+        assert_eq!(progress.downloaded, 0);
+        assert!(updater.installer.lock().unwrap().is_none());
+        assert_eq!(
+            updater.release.lock().unwrap().as_ref().unwrap().url,
+            format!("{base}/{name}")
+        );
     }
 }

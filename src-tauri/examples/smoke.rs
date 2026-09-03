@@ -1,4 +1,4 @@
-use glyph_core::{
+use fastfileocr_core::{
     engine::Engine,
     export,
     import::import_file,
@@ -13,6 +13,19 @@ fn main() {
 }
 fn execute() -> Result<(), String> {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
+    if args.first().is_some_and(|s| s == "--check-updates") {
+        let repository = args
+            .get(1)
+            .map(String::as_str)
+            .unwrap_or(fastfileocr_core::updates::default_repository());
+        let updater = fastfileocr_core::updates::Updater::default();
+        updater.check(repository)?;
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&updater.snapshot()).map_err(|e| e.to_string())?
+        );
+        return Ok(());
+    }
     if args.first().is_some_and(|s| s == "--copy-image") {
         let image = image::open(args.get(1).ok_or("image path missing")?)
             .map_err(|e| e.to_string())?
@@ -30,7 +43,7 @@ fn execute() -> Result<(), String> {
     }
     let input = args
         .first()
-        .ok_or("usage: smoke INPUT [auto|cpu|vulkan] [text|document|table]")?;
+        .ok_or("usage: smoke INPUT [auto|cpu|vulkan|cuda] [text|document|table]")?;
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let resources = root.join("resources");
     let mut store = Store::create(&root.join("../outputs/smoke"), "OCR validation".into())?;
@@ -40,9 +53,10 @@ fn execute() -> Result<(), String> {
         device: args.get(1).cloned().unwrap_or("auto".into()),
         mode: args.get(2).cloned().unwrap_or("text".into()),
         max_tokens: 4096,
+        use_layout: false, // This example validates whole-page OCR.
         ..Settings::default()
     };
-    let downloads = glyph_core::download::Downloads::new(
+    let downloads = fastfileocr_core::download::Downloads::new(
         &root.join("../.cache/smoke-models"),
         settings.use_layout,
     );
@@ -67,7 +81,7 @@ fn execute() -> Result<(), String> {
         println!("PAGE {}: {}\nWARNING: {:?}", index + 1, text, warning);
         let p = store.page_mut(&page.id)?;
         p.raw_text = text.clone();
-        let (normalized, w) = glyph_core::table::normalize(&text, &settings.mode);
+        let (normalized, w) = fastfileocr_core::table::normalize(&text, &settings.mode);
         p.edit(normalized);
         p.warning = warning.or(w);
         p.status = "done".into();

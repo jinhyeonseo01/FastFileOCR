@@ -25,9 +25,7 @@ impl Default for Preferences {
             schema_version: 1,
             language: "en".into(),
             check_updates: true,
-            github_repository: option_env!("FASTFILEOCR_GITHUB_REPOSITORY")
-                .unwrap_or("")
-                .into(),
+            github_repository: crate::updates::default_repository().into(),
             project_root: None,
             scan: Settings::default(),
         }
@@ -146,7 +144,7 @@ pub fn ensure_owned(root: &Path) -> Result<()> {
     }
     Ok(())
 }
-pub fn load(root: &Path, legacy_config: &Path) -> Result<Preferences> {
+pub fn load(root: &Path) -> Result<Preferences> {
     ensure_owned(root)?;
     let path = root.join("settings.json");
     let mut settings = if path.is_file() {
@@ -156,84 +154,75 @@ pub fn load(root: &Path, legacy_config: &Path) -> Result<Preferences> {
         initial.language = registry_value("Language")
             .filter(|v| ["en", "ko", "ja"].contains(&v.as_str()))
             .unwrap_or_else(|| "en".into());
-        // Upgrade preserves the old workspace reference; model migration is handled separately.
-        if !root.join(".fresh-settings").exists() {
-            if let Ok(bytes) = fs::read(legacy_config) {
-                if let Ok(old) = serde_json::from_slice::<serde_json::Value>(&bytes) {
-                    initial.project_root = old["projectRoot"].as_str().map(PathBuf::from);
-                }
-            }
-        }
         initial
     };
     if settings.github_repository.is_empty() {
-        settings.github_repository = option_env!("FASTFILEOCR_GITHUB_REPOSITORY")
-            .unwrap_or("")
-            .into();
+        settings.github_repository = crate::updates::default_repository().into();
     }
     settings.validate()?;
     settings.schema_version = 1;
     settings.save(root)?;
-    let _ = fs::remove_file(root.join(".fresh-settings"));
     i18n::set_language(&settings.language);
     Ok(settings)
-}
-pub fn migrate_models(legacy: &Path, root: &Path) -> Result<()> {
-    let destination = root.join("models");
-    if destination.exists() || !legacy.is_dir() {
-        return Ok(());
-    }
-    fn copy_tree(source: &Path, target: &Path) -> Result<()> {
-        fs::create_dir_all(target).map_err(err)?;
-        for entry in fs::read_dir(source).map_err(err)? {
-            let entry = entry.map_err(err)?;
-            let kind = entry.file_type().map_err(err)?;
-            if kind.is_symlink() {
-                continue;
-            }
-            if kind.is_dir() {
-                copy_tree(&entry.path(), &target.join(entry.file_name()))?;
-            } else if kind.is_file() {
-                fs::copy(entry.path(), target.join(entry.file_name())).map_err(err)?;
-            }
-        }
-        Ok(())
-    }
-    copy_tree(legacy, &destination)
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
-    fn migrations_preserve_workspace_and_reject_future_schema() {
-        let dir = tempfile::tempdir().unwrap();
-        let legacy = dir.path().join("legacy.json");
-        fs::write(&legacy, br#"{"projectRoot":"C:/documents/project"}"#).unwrap();
-        let root = dir.path().join("data");
-        let p = load(&root, &legacy).unwrap();
-        assert!(p.project_root.is_some());
-        assert!(root.join(MARKER).is_file());
-        let mut future = p.clone();
-        future.schema_version = 99;
-        assert!(future.validate().is_err());
-    }
-    #[test]
-    fn fresh_start_skips_legacy_and_preserves_models() {
+    fn saved_preferences_preserve_workspace_and_custom_repository() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("data");
         ensure_owned(&root).unwrap();
-        fs::create_dir(root.join("models")).unwrap();
-        fs::write(root.join("models/retained.part"), b"keep").unwrap();
-        fs::write(root.join(".fresh-settings"), b"1").unwrap();
-        let legacy = dir.path().join("legacy.json");
-        fs::write(&legacy, br#"{"projectRoot":"C:/documents/old"}"#).unwrap();
-        let preferences = load(&root, &legacy).unwrap();
-        assert!(preferences.project_root.is_none());
-        assert!(!root.join(".fresh-settings").exists());
+        let saved = Preferences {
+            project_root: Some(PathBuf::from("C:/documents/project")),
+            github_repository: "example/FastFileOCR".into(),
+            ..Preferences::default()
+        };
+        saved.save(&root).unwrap();
+        let mut loaded = load(&root).unwrap();
+        assert_eq!(loaded.project_root, saved.project_root);
+        assert_eq!(loaded.github_repository, saved.github_repository);
+        loaded.schema_version = 99;
+        assert!(loaded.validate().is_err());
+    }
+    #[test]
+    fn blank_repository_uses_default_without_changing_saved_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        ensure_owned(dir.path()).unwrap();
+        let mut saved = Preferences::default();
+        saved.github_repository.clear();
+        saved.language = "ja".into();
+        saved.scan.use_layout = false;
+        saved.save(dir.path()).unwrap();
+        let loaded = load(dir.path()).unwrap();
         assert_eq!(
-            fs::read(root.join("models/retained.part")).unwrap(),
-            b"keep"
+            loaded.github_repository,
+            crate::updates::default_repository()
         );
+        assert_eq!(loaded.language, "ja");
+        assert!(!loaded.scan.use_layout);
+    }
+    #[test]
+    fn fresh_settings_preserve_models_and_documents() {
+        let dir = tempfile::tempdir().unwrap();
+        ensure_owned(dir.path()).unwrap();
+        for name in ["models", "workspaces"] {
+            fs::create_dir(dir.path().join(name)).unwrap();
+            fs::write(dir.path().join(name).join("retained.part"), b"keep").unwrap();
+        }
+        let loaded = load(dir.path()).unwrap();
+        assert!(loaded.project_root.is_none());
+        assert_eq!(
+            loaded.github_repository,
+            crate::updates::default_repository()
+        );
+        for name in ["models", "workspaces"] {
+            assert_eq!(
+                fs::read(dir.path().join(name).join("retained.part")).unwrap(),
+                b"keep"
+            );
+        }
     }
     #[test]
     fn rejects_invalid_ownership_marker() {

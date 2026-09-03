@@ -146,7 +146,8 @@ const metadata = JSON.parse(
 );
 const used = new Set(metadata.resolve.nodes.map((n) => n.id));
 for (const pkg of metadata.packages) {
-  if (pkg.name === "glyph-ocr" || !used.has(pkg.id)) continue;
+  if (metadata.workspace_members.includes(pkg.id) || !used.has(pkg.id))
+    continue;
   await append(
     pkg.name,
     pkg.version,

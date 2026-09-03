@@ -32,18 +32,11 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            let legacy_data = app.path().app_data_dir()?;
-            let legacy_local = app.path().app_local_data_dir()?;
             let local = std::env::var_os("LOCALAPPDATA")
                 .map(PathBuf::from)
-                .unwrap_or_else(|| legacy_local.clone());
+                .unwrap_or(app.path().local_data_dir()?);
             let data = configuration::data_root(&local);
-            let preferences = configuration::load(&data, &legacy_data.join("settings.json"))
-                .map_err(std::io::Error::other)?;
-            if std::env::var_os("FASTFILEOCR_DATA_DIR").is_none() {
-                configuration::migrate_models(&legacy_local.join("models"), &data)
-                    .map_err(std::io::Error::other)?;
-            }
+            let preferences = configuration::load(&data).map_err(std::io::Error::other)?;
             let mut notice = i18n::text("initialMessage");
             let store = match preferences.project_root.clone().map(Store::open) {
                 Some(Ok(s)) => s,

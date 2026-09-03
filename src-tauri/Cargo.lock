@@ -1103,6 +1103,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastfileocr"
+version = "0.1.1"
+dependencies = [
+ "ammonia",
+ "arboard",
+ "base64 0.22.1",
+ "image",
+ "ort",
+ "pdfium-render",
+ "pulldown-cmark",
+ "reqwest 0.12.28",
+ "scraper",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-single-instance",
+ "tempfile",
+ "uuid",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1553,32 +1579,6 @@ name = "glob"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
-
-[[package]]
-name = "glyph-ocr"
-version = "0.1.0"
-dependencies = [
- "ammonia",
- "arboard",
- "base64 0.22.1",
- "image",
- "ort",
- "pdfium-render",
- "pulldown-cmark",
- "reqwest 0.12.28",
- "scraper",
- "semver",
- "serde",
- "serde_json",
- "sha2",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-single-instance",
- "tempfile",
- "uuid",
- "windows-sys 0.61.2",
-]
 
 [[package]]
 name = "gobject-sys"

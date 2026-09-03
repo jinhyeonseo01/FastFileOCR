@@ -11,6 +11,14 @@ import {
 import type { WorkspaceController } from "../hooks/useWorkspace";
 import { languageNames, type Language } from "../i18n";
 import { IconButton } from "./controls";
+const updateLabels: Record<string, string> = {
+  current: "upToDate",
+  unreleased: "updateNoRelease",
+  available: "updateAvailable",
+  ready: "updateReady",
+  checking: "updateChecking",
+  downloading: "updateDownloading",
+};
 export function SettingsDialog({ w }: { w: WorkspaceController }) {
   const { t } = w;
   const [section, setSection] = useState(w.settingsSection);
@@ -235,20 +243,9 @@ export function SettingsDialog({ w }: { w: WorkspaceController }) {
                 <p className="field-hint">{t("repositoryHint")}</p>
                 <div className="update-card">
                   <p>
-                    {t(
-                      w.data.update.status === "current"
-                        ? "upToDate"
-                        : w.data.update.status === "available"
-                          ? "updateAvailable"
-                          : w.data.update.status === "ready"
-                            ? "updateReady"
-                            : w.data.update.status === "checking"
-                              ? "updateChecking"
-                              : w.data.update.status === "downloading"
-                                ? "updateDownloading"
-                                : "updateIdle",
-                      { version: w.data.update.version },
-                    )}
+                    {t(updateLabels[w.data.update.status] ?? "updateIdle", {
+                      version: w.data.update.version,
+                    })}
                   </p>
                   {w.data.update.error && (
                     <p className="error-text">{w.l(w.data.update.error)}</p>

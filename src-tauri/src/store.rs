@@ -172,7 +172,7 @@ impl Store {
             settings: Settings::default(),
             pages: vec![],
         };
-        let root = parent.join(format!("Glyph-{}", &project.id[..8]));
+        let root = parent.join(format!("FastFileOCR-{}", &project.id[..8]));
         fs::create_dir_all(root.join("pages")).map_err(err)?;
         fs::create_dir_all(root.join("sources")).map_err(err)?;
         let mut store = Self { root, project };

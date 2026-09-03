@@ -72,7 +72,6 @@ try {
   $app = Join-Path $runRoot 'fresh/app folder'
   if ((Run-Setup $app $data @('/FRESH=1','/LANGUAGE=1041')) -ne 0) { throw 'Fresh install failed.' }
   Assert-Missing "$data/settings.json"
-  Assert-Exists "$data/.fresh-settings"
   $backups = @(Get-ChildItem -LiteralPath "$data/settings-backups" -File)
   if ($backups.Count -ne 1 -or [IO.File]::ReadAllText($backups[0].FullName) -ne '{"language":"ko","schemaVersion":1}') { throw 'Settings backup mismatch.' }
   $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("$regRoot\Data")

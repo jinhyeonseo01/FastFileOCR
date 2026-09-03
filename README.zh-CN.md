@@ -70,6 +70,10 @@ Word和PowerPoint文件请先导出为PDF再导入。加密的PDF需要先解除
 
 安装程序已包含所需运行环境，无需另外安装Rust、Python、Node.js或LM Studio。
 
+## 参与贡献
+
+欢迎贡献，也允许使用AI。新增功能或调整结构前，请先通过Issue讨论必要性和目的。完整PR指南请参阅[CONTRIBUTING.md](CONTRIBUTING.md)。
+
 ## 许可证
 
 本项目的原创代码和文档采用 **[CC BY 4.0](LICENSE)** 许可证。署名信息请参阅 [NOTICE.txt](NOTICE.txt)。第三方模型和库遵循各自的许可证。

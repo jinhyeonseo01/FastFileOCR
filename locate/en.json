@@ -159,7 +159,7 @@
   "invalidPath": "Invalid save path.",
   "invalidProjectPath": "Invalid workspace path.",
   "outsideProject": "Files outside the workspace cannot be accessed.",
-  "invalidProject": "Choose a compatible workspace folder. Older documents can be imported again from their original files.",
+  "invalidProject": "Choose a FastFileOCR workspace folder.",
   "interruptedPage": "This scan was interrupted. You can scan the page again.",
   "pageMissing": "Page not found.",
   "pageLimit": "A workspace can contain up to 1,000 pages. Create a new workspace.",
@@ -282,5 +282,6 @@
   "installDataResolved": "Data will be stored here:",
   "uninstallDataTitle": "Choose what to remove",
   "uninstallDataHint": "Unchecked items will be kept for future installations.",
-  "installWindowsRequired": "FastFileOCR requires Windows 10 or later."
+  "installWindowsRequired": "FastFileOCR requires Windows 10 or later.",
+  "updateNoRelease": "No public release has been published yet."
 }
