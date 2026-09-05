@@ -230,16 +230,7 @@ export function SettingsDialog({ w }: { w: WorkspaceController }) {
                 </label>
                 <label className="field">
                   {t("repository")}
-                  <input
-                    placeholder={t("repositoryPlaceholder")}
-                    value={w.preferences.githubRepository}
-                    onChange={(e) =>
-                      w.setPreferences({
-                        ...w.preferences,
-                        githubRepository: e.target.value.trim(),
-                      })
-                    }
-                  />
+                  <input value={w.data.preferences.githubRepository} readOnly />
                 </label>
                 <p className="field-hint">{t("repositoryHint")}</p>
                 <div className="update-card">

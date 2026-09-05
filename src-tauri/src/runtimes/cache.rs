@@ -64,10 +64,21 @@ fn required(device: &str) -> Vec<String> {
         "ggml.dll",
         "ggml-base.dll",
         "vcruntime140.dll",
+        "vcruntime140_1.dll",
+        "msvcp140.dll",
     ]
     .into_iter()
     .map(str::to_string)
     .chain([format!("ggml-{device}.dll")])
+    .chain(if device == "cuda" {
+        vec![
+            "cublas64_13.dll".into(),
+            "cublasLt64_13.dll".into(),
+            "cudart64_13.dll".into(),
+        ]
+    } else {
+        vec![]
+    })
     .collect()
 }
 pub(super) fn valid(
@@ -199,11 +210,12 @@ pub(super) fn install(
             }
         }
     }
-    if required(device)
-        .iter()
-        .any(|name| !regular(&stage.path().join(name)))
-    {
-        return Err(i18n::text("runtimeIncomplete"));
+    let missing: Vec<_> = required(device)
+        .into_iter()
+        .filter(|name| !regular(&stage.path().join(name)))
+        .collect();
+    if !missing.is_empty() {
+        return Err(i18n::f("runtimeIncomplete", &[missing.join(", ")]));
     }
     let mut records = BTreeMap::new();
     for entry in fs::read_dir(stage.path()).map_err(err)? {
@@ -272,14 +284,20 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let resources = dir.path().join("resources");
         fs::create_dir_all(resources.join("runtime/msvc")).unwrap();
-        fs::write(resources.join("runtime/msvc/vcruntime140.dll"), b"crt").unwrap();
+        for name in ["vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll"] {
+            fs::write(resources.join("runtime/msvc").join(name), b"crt").unwrap();
+        }
         let archive_path = dir.path().join("engine.zip");
-        let names = required("vulkan");
-        let entries: Vec<_> = names
-            .iter()
-            .filter(|n| n.as_str() != "vcruntime140.dll")
-            .map(|n| (n.as_str(), b"engine".as_slice()))
-            .collect();
+        // This fixture models an upstream archive, independently of the validator.
+        let names = [
+            "llama-server.exe",
+            "llama.dll",
+            "mtmd.dll",
+            "ggml.dll",
+            "ggml-base.dll",
+            "ggml-vulkan.dll",
+        ];
+        let entries: Vec<_> = names.iter().map(|n| (*n, b"engine".as_slice())).collect();
         archive(&archive_path, &entries);
         let file = ModelFile {
             name: "engine.zip".into(),
@@ -292,6 +310,23 @@ mod tests {
         };
         let downloads = Downloads::for_files(dir.path().into(), vec![file.clone()]);
         let root = dir.path().join("version/vulkan");
+        fs::remove_file(resources.join("runtime/msvc/vcruntime140.dll")).unwrap();
+        let failure = install(
+            &root,
+            &resources,
+            "vulkan",
+            &[file.clone()],
+            &downloads,
+            &|_| {},
+        )
+        .unwrap_err();
+        assert_eq!(
+            failure,
+            i18n::f("runtimeIncomplete", &["vcruntime140.dll".into()])
+        );
+        assert!(!root.exists());
+        assert!(archive_path.is_file());
+        fs::write(resources.join("runtime/msvc/vcruntime140.dll"), b"crt").unwrap();
         install(
             &root,
             &resources,

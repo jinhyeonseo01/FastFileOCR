@@ -1,0 +1,32 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      compatible-npm:
+        patterns: ["*"]
+        exclude-patterns: ["@tauri-apps/cli"]
+        update-types: [minor, patch]
+  - package-ecosystem: cargo
+    directories:
+      - /src-tauri
+      - /installer/helper
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      compatible-rust:
+        patterns: ["*"]
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      compatible-actions:
+        patterns: ["*"]
+        update-types: [minor, patch]

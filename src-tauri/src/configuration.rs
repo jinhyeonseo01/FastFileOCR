@@ -15,9 +15,14 @@ pub struct Preferences {
     pub schema_version: u32,
     pub language: String,
     pub check_updates: bool,
+    // Display-only. Legacy settings and IPC input cannot override the build's update source.
+    #[serde(skip_deserializing, default = "configured_repository")]
     pub github_repository: String,
     pub project_root: Option<PathBuf>,
     pub scan: Settings,
+}
+fn configured_repository() -> String {
+    crate::updates::default_repository().into()
 }
 impl Default for Preferences {
     fn default() -> Self {
@@ -156,9 +161,6 @@ pub fn load(root: &Path) -> Result<Preferences> {
             .unwrap_or_else(|| "en".into());
         initial
     };
-    if settings.github_repository.is_empty() {
-        settings.github_repository = crate::updates::default_repository().into();
-    }
     settings.validate()?;
     settings.schema_version = 1;
     settings.save(root)?;
@@ -170,7 +172,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn saved_preferences_preserve_workspace_and_custom_repository() {
+    fn saved_preferences_preserve_workspace_and_use_the_build_repository() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("data");
         ensure_owned(&root).unwrap();
@@ -182,7 +184,10 @@ mod tests {
         saved.save(&root).unwrap();
         let mut loaded = load(&root).unwrap();
         assert_eq!(loaded.project_root, saved.project_root);
-        assert_eq!(loaded.github_repository, saved.github_repository);
+        assert_eq!(
+            loaded.github_repository,
+            crate::updates::default_repository()
+        );
         loaded.schema_version = 99;
         assert!(loaded.validate().is_err());
     }
@@ -202,6 +207,19 @@ mod tests {
         );
         assert_eq!(loaded.language, "ja");
         assert!(!loaded.scan.use_layout);
+    }
+    #[test]
+    fn repository_from_ipc_or_legacy_settings_cannot_override_update_source() {
+        for repository in ["other/project", "", "https://example.invalid"] {
+            let input = serde_json::json!({"githubRepository":repository, "language":"ko", "checkUpdates":false});
+            let decoded: Preferences = serde_json::from_value(input).unwrap();
+            assert_eq!(
+                decoded.github_repository,
+                crate::updates::default_repository()
+            );
+            assert_eq!(decoded.language, "ko");
+            assert!(!decoded.check_updates);
+        }
     }
     #[test]
     fn fresh_settings_preserve_models_and_documents() {

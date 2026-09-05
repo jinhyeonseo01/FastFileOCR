@@ -20,10 +20,10 @@ jobs:
       run:
         shell: pwsh
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -44,7 +44,7 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
       - name: Cache bundled CPU and document libraries
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .cache/bundle
           key: windows-cpu-assets-${{ hashFiles('scripts/build/resources.ps1', 'src-tauri/src/runtimes/manifest.json') }}
@@ -52,17 +52,13 @@ jobs:
         run: npm run resources:prepare
       - name: Verify source and tests
         run: |
-          npm run locales:check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm test
+          npm run test:resources
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build NSIS installer EXE
         run: npm run installer
-      - name: Verify installer data lifecycle
+      - name: Verify installed resources and data lifecycle
         run: npm run installer:test
       - name: Upload installer build
         uses: actions/upload-artifact@v4

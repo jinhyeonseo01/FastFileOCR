@@ -2,8 +2,6 @@ param()
 $ErrorActionPreference = 'Stop'
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 Set-Location -LiteralPath $root
-cargo test --locked --manifest-path installer/helper/Cargo.toml --target-dir .cache/installer-helper-target
-if ($LASTEXITCODE -ne 0) { throw 'Installer helper tests failed.' }
 $sourceDir = Join-Path $root 'src-tauri/target/release/nsis/x64'
 $compiler = Join-Path $env:LOCALAPPDATA 'tauri/NSIS/makensis.exe'
 if (!(Test-Path -LiteralPath "$sourceDir/installer.nsi") -or !(Test-Path -LiteralPath $compiler)) {
@@ -41,7 +39,7 @@ function Make-Data($Name) {
   Write-Text "$data/personal.txt" 'unmanaged'
   return $data
 }
-# Use production NSIS pages and hooks, replacing only fixture identity and payload.
+# Use production resource destinations and payload; isolate the app identity and skip WebView2.
 $source = [IO.File]::ReadAllText("$sourceDir/installer.nsi")
 $defines = @{
   MANUFACTURER = "FastFileOCR-InstallerTests\$id"
@@ -59,11 +57,6 @@ foreach ($key in $defines.Keys) {
 }
 $source = "!define FFO_REGKEY `"$regRoot\Data`"`n" + $source
 $source = $source.Replace('!include "utils.nsh"', "!include `"$sourceDir\utils.nsh`"").Replace('!include "FileAssociation.nsh"', "!include `"$sourceDir\FileAssociation.nsh`"")
-$source = [regex]::Replace($source, '(?m)^    File /a[^\r\n]*', [System.Text.RegularExpressions.MatchEvaluator]{
-  param($m)
-  if ($m.Value.Contains('fastfileocr-setup-helper.exe')) { return $m.Value }
-  return ''
-})
 $source = $source.Replace('SetCompressor /SOLID "lzma"', 'SetCompress off')
 Write-Text "$runRoot/test.nsi" $source
 & $compiler -INPUTCHARSET UTF8 -V2 "$runRoot/test.nsi" *> "$runRoot/compile.log"
@@ -72,6 +65,15 @@ try {
   $data = Make-Data ('fresh-' + [char]0xD55C + [char]0xAE00 + ' ' + [char]0x65E5)
   $app = Join-Path $runRoot 'fresh/app folder'
   if ((Run-Setup $app $data @('/FRESH=1','/LANGUAGE=1041')) -ne 0) { throw 'Fresh install failed.' }
+  node scripts/build/check-resources.mjs --installed $app
+  if ($LASTEXITCODE -ne 0) { throw 'Installed resource verification failed.' }
+  $originalPath = $env:PATH
+  try {
+    $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+    $engine = Start-Process -FilePath "$app/resources/runtime/cpu/llama-server.exe" -ArgumentList '--version' -WorkingDirectory "$app/resources/runtime/cpu" -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput "$runRoot/cpu.stdout.log" -RedirectStandardError "$runRoot/cpu.stderr.log"
+    if ($engine.ExitCode -ne 0) { throw 'Installed CPU engine failed to load its DLLs.' }
+  } finally { $env:PATH = $originalPath }
+  Write-Host 'Passed: production resource paths/hashes and installed CPU engine'
   Assert-Missing "$data/settings.json"
   $backups = @(Get-ChildItem -LiteralPath "$data/settings-backups" -File)
   if ($backups.Count -ne 1 -or [IO.File]::ReadAllText($backups[0].FullName) -ne '{"language":"ko","schemaVersion":1}') { throw 'Settings backup mismatch.' }

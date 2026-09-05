@@ -1,7 +1,10 @@
 import { readFile, readdir } from "node:fs/promises";
 import assert from "node:assert/strict";
 const en = JSON.parse(await readFile("locate/en.json", "utf8"));
-for (const lang of ["ko", "ja"]) {
+const languages = (await readdir("locate"))
+  .filter((name) => name.endsWith(".json"))
+  .map((name) => name.slice(0, -5));
+for (const lang of languages) {
   const values = JSON.parse(await readFile("locate/" + lang + ".json", "utf8"));
   assert.deepEqual(
     Object.keys(values).sort(),
@@ -9,7 +12,10 @@ for (const lang of ["ko", "ja"]) {
     "Locale keys: " + lang,
   );
   for (const key of Object.keys(en)) {
-    assert.ok(values[key].trim(), "Empty translation: " + lang + "/" + key);
+    assert.ok(
+      typeof values[key] === "string" && values[key].trim(),
+      "Empty translation: " + lang + "/" + key,
+    );
     const params = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
     assert.deepEqual(
       params(values[key]),

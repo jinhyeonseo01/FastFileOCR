@@ -10,6 +10,7 @@ __pycache__/
 /src-tauri/target/
 /src-tauri/gen/
 /src-tauri/resources/runtime/
+/src-tauri/resources/msvc-app/
 /src-tauri/resources/layout/
 /src-tauri/resources/licenses/
 /src-tauri/resources/bundle-manifest.json

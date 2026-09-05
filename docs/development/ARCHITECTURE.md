@@ -41,3 +41,11 @@ Components are separated into sidebar, document editor, lazy-loaded Markdown ren
 ## Installer boundary
 
 Tauri's NSIS bundler owns the standard Windows package. A verified upstream template is extended at explicit anchors to add localized data pages and replace broad app-data removal. The template and CLI versions are pinned together. NSIS delegates path validation, fresh settings backups and selective cleanup to the standalone Rust crate in installer/helper. Install and uninstall tests use the same template, hooks and helper with isolated payloads and registry keys. Reinstallation and update-triggered uninstall retain user data.
+
+## Image and runtime boundaries
+
+New scan pages and region crops are PNG. Thumbnails remain JPEG. Transparent pixels are composited on white before scanning; the existing 4000-pixel page limit and PDF rendering size remain unchanged. Region context scales with 8% of the shorter box edge, bounded to 4–32 pixels and the page edge. Structured exports retain the original detector coordinates.
+
+The llama.cpp request boundary detects the image MIME type from bytes, including JPEG pages in older workspaces, and loads the selected adapter's weights and multimodal projector together. Reimport older sources to eliminate JPEG loss already stored in an existing scan page.
+
+MSVC DLLs have separate build sources for the app root (resources/msvc-app) and sidecars (resources/runtime/msvc). Tauri source deduplication must not merge these destinations. Resource mapping and installed-payload checks protect that boundary.

@@ -31,7 +31,7 @@ export type Preferences = {
   schemaVersion: number;
   language: Language;
   checkUpdates: boolean;
-  githubRepository: string;
+  readonly githubRepository: string;
   projectRoot?: string;
   scan: Settings;
 };

@@ -4,9 +4,11 @@ pub mod download;
 pub mod engine;
 pub mod export;
 pub mod i18n;
+mod images;
 pub mod import;
 pub mod layout;
 pub mod models;
+pub mod recognition;
 pub mod runtimes;
 pub mod store;
 pub mod table;
@@ -89,6 +91,7 @@ pub fn run() {
             commands::update_settings,
             commands::edit_page,
             commands::remove_page,
+            commands::remove_pages,
             commands::preview,
             commands::cancel_scan,
             commands::pause_download,

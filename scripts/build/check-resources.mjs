@@ -2,6 +2,7 @@ import { createReadStream } from "node:fs";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
+import { resourceMap } from "./resource-map.mjs";
 const root = path.resolve("src-tauri/resources");
 async function rejectModelWeights(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -18,6 +19,32 @@ async function rejectModelWeights(directory) {
 }
 try {
   await rejectModelWeights(root);
+  const config = JSON.parse(
+    await readFile("src-tauri/tauri.conf.json", "utf8"),
+  );
+  const mapped = await resourceMap(
+    path.resolve("src-tauri"),
+    config.bundle.resources,
+  );
+  const installedAt = process.argv.indexOf("--installed");
+  if (installedAt >= 0) {
+    const location = process.argv[installedAt + 1];
+    if (!location)
+      throw new Error("--installed requires an application directory");
+    const sha256 = async (file) => {
+      const hash = createHash("sha256");
+      for await (const chunk of createReadStream(file)) hash.update(chunk);
+      return hash.digest("hex");
+    };
+    for (const file of mapped) {
+      const installed = path.resolve(location, file.target);
+      if ((await sha256(file.source)) !== (await sha256(installed)))
+        throw new Error("Installed resource mismatch: " + file.target);
+    }
+    console.log(
+      "Verified " + mapped.length + " installed resource destinations.",
+    );
+  }
   const manifest = JSON.parse(
     (await readFile(path.join(root, "bundle-manifest.json"), "utf8")).replace(
       /^\uFEFF/,
@@ -36,6 +63,10 @@ try {
     "runtime/onnxruntime/onnxruntime.dll",
     "runtime/msvc/vcruntime140.dll",
     "runtime/msvc/vcruntime140_1.dll",
+    "runtime/msvc/msvcp140.dll",
+    "msvc-app/vcruntime140.dll",
+    "msvc-app/vcruntime140_1.dll",
+    "msvc-app/msvcp140.dll",
     "runtime/cpu/msvcp140.dll",
     "licenses/LLVM-OpenMP.txt",
     "licenses/THIRD-PARTY-NOTICES.txt",

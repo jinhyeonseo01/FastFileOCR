@@ -1,7 +1,7 @@
 use crate::store::{err, id, Result, Settings};
-use base64::Engine as _;
+mod protocol;
 use reqwest::blocking::Client;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::{
     fs,
     net::TcpListener,
@@ -155,9 +155,7 @@ impl Engine {
     ) -> Result<()> {
         let binary = directory.join("llama-server.exe");
         let runtime = crate::models::get(model_id)?.runtime(resources, models);
-        let model = runtime.weights;
-        let projector = runtime.projector;
-        for path in [&binary, &model, &projector] {
+        for path in [&binary, &runtime.weights, &runtime.projector] {
             if !path.is_file() {
                 return Err(crate::i18n::f(
                     "missingResource",
@@ -171,37 +169,22 @@ impl Engine {
         fs::create_dir_all(log_dir).map_err(err)?;
         let log = fs::File::create(log_dir.join(format!("llama-{device}.log"))).map_err(err)?;
         let mut cmd = Command::new(&binary);
+        protocol::configure_model(&mut cmd, &runtime, device);
         cmd.current_dir(binary.parent().unwrap())
-            .arg("--model")
-            .arg(model)
-            .arg("--mmproj")
-            .arg(projector)
             .arg("--host")
             .arg("127.0.0.1")
             .arg("--port")
             .arg(port.to_string())
             .arg("--api-key")
             .arg(&key)
-            .arg("--alias")
-            .arg(runtime.alias)
-            .arg("--ctx-size")
-            .arg(runtime.context.to_string())
             .arg("--parallel")
             .arg("1")
-            .arg("--n-gpu-layers")
-            .arg(if device == "cpu" { "0" } else { "99" })
-            .arg("--jinja")
-            .arg("--chat-template-file")
-            .arg(runtime.template)
             .arg("--temp")
             .arg("0")
             .arg("--no-webui")
             .stdin(Stdio::null())
             .stdout(Stdio::from(log.try_clone().map_err(err)?))
             .stderr(Stdio::from(log));
-        if device == "cpu" {
-            cmd.arg("--no-mmproj-offload");
-        }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -277,14 +260,7 @@ impl Engine {
             let server = slot.as_ref().ok_or(crate::i18n::text("engineNotRunning"))?;
             (server.port, server.key.clone())
         };
-        let data = base64::engine::general_purpose::STANDARD.encode(fs::read(image).map_err(err)?);
-        let payload = json!({
-            "model": "ocr", "temperature": 0, "max_tokens": crate::models::get(&settings.model_id)?.max_tokens(settings),
-            "stream": false, "messages": [{"role":"user","content":[
-                {"type":"image_url","image_url":{"url":format!("data:image/jpeg;base64,{data}")}},
-                {"type":"text","text":settings.prompt()}
-            ]}]
-        });
+        let payload = protocol::request(&image, settings)?;
         let client = Client::builder()
             .no_proxy()
             .connect_timeout(Duration::from_secs(5))

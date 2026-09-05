@@ -82,8 +82,10 @@ $redist = Get-ChildItem -LiteralPath "$vsRoot/VC/Redist/MSVC" -Directory |
   ForEach-Object { Get-ChildItem -LiteralPath "$($_.FullName)/x64" -Directory -Filter 'Microsoft.VC*.CRT' -ErrorAction SilentlyContinue } |
   Select-Object -First 1
 if (!$redist) { throw 'MSVC x64 redistributable CRT directory was not found.' }
-New-Item -ItemType Directory -Force -Path "$resources/runtime/msvc" | Out-Null
+New-Item -ItemType Directory -Force -Path "$resources/runtime/msvc","$resources/msvc-app" | Out-Null
 foreach ($dll in (Get-ChildItem -LiteralPath $redist.FullName -File -Filter '*.dll')) {
+  # Separate sources avoid Tauri deduplicating the same DLL into only one destination.
+  Copy-Asset $dll.FullName "$resources/msvc-app/$($dll.Name)"
   foreach ($variant in @('msvc','cpu','onnxruntime')) { Copy-Asset $dll.FullName "$resources/runtime/$variant/$($dll.Name)" }
 }
 Copy-Item -LiteralPath "$cache/cpu/LICENSE-LLVM-OpenMP" -Destination "$resources/licenses/LLVM-OpenMP.txt" -Force

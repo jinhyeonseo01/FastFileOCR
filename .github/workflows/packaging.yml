@@ -1,0 +1,58 @@
+name: Packaging validation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: packaging-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  installer:
+    runs-on: windows-2025
+    env:
+      FASTFILEOCR_GITHUB_REPOSITORY: ${{ github.repository }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install locked Rust toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Cache bundled CPU and document libraries
+        uses: actions/cache@v6
+        with:
+          path: .cache/bundle
+          key: windows-cpu-assets-${{ hashFiles('scripts/build/resources.ps1', 'src-tauri/src/runtimes/manifest.json') }}
+      - name: Prepare CPU engine and document libraries
+        run: npm run resources:prepare
+      - name: Verify source and tests
+        run: |
+          npm run check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:resources
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build NSIS installer EXE
+        run: npm run installer
+      - name: Verify installed resources and data lifecycle
+        run: npm run installer:test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: packaging-logs
+          path: .cache/nsis-tests/**/*.log
+          if-no-files-found: ignore

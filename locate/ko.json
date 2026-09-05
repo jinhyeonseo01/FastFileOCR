@@ -125,7 +125,7 @@
   "modelDownloadHint": "모델은 처음 사용할 때 Hugging Face에서 받습니다. 문서는 외부로 보내지 않습니다.",
   "autoUpdates": "시작할 때 업데이트 확인",
   "repository": "GitHub 저장소",
-  "repositoryHint": "owner/repository 형식입니다. 공식 릴리즈 빌드에는 원본 저장소가 자동 설정됩니다.",
+  "repositoryHint": "이 앱의 릴리즈 저장소에서 업데이트를 확인합니다.",
   "checkNow": "지금 확인",
   "currentVersion": "설치 버전 {version}",
   "updateAvailable": "{version} 업데이트가 있습니다",
@@ -262,7 +262,6 @@
   "webviewStartError": "동봉한 Microsoft WebView2 설치기를 실행하지 못했습니다.",
   "webviewInstallError": "Microsoft WebView2 설치에 실패했습니다. Windows를 재시작한 뒤 다시 설치하세요.",
   "installerAppRunning": "설치하거나 데이터 설정을 바꾸기 전에 FastFileOCR를 종료하세요.",
-  "repositoryPlaceholder": "소유자/저장소",
   "abstract": "초록",
   "algorithm": "알고리즘",
   "aside_text": "보조 텍스트",
@@ -289,6 +288,8 @@
   "runtimeUnavailable": "{0}에는 호환되는 GPU와 드라이버가 필요합니다. 자동 또는 CPU를 선택하거나 그래픽 드라이버를 업데이트하세요.",
   "runtimeUnsafeArchive": "GPU 엔진 압축 파일에 유효하지 않은 파일이 있습니다.",
   "runtimeCacheError": "GPU 엔진 폴더를 안전하게 갱신할 수 없습니다. 데이터 폴더를 확인하고 다시 시도하세요.",
-  "runtimeIncomplete": "GPU 엔진에 필요한 파일이 빠져 있습니다. 다시 시도하세요.",
-  "runtimeDownloadHint": "GPU 엔진은 처음 사용할 때 다운로드합니다. Vulkan 약 34 MB, CUDA 약 537 MB이며, 이어받기와 앱 업데이트 후 재사용을 지원합니다."
+  "runtimeIncomplete": "GPU 엔진에 필요한 파일이 빠져 있습니다: {0}. 앱을 다시 설치하고 재시도하세요.",
+  "runtimeDownloadHint": "GPU 엔진은 처음 사용할 때 다운로드합니다. Vulkan 약 34 MB, CUDA 약 537 MB이며, 이어받기와 앱 업데이트 후 재사용을 지원합니다.",
+  "removeSelected": "선택 문서 삭제 (Delete)",
+  "pagesRemoved": "문서 {count}개를 목록에서 삭제했습니다."
 }

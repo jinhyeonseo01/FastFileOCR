@@ -202,6 +202,13 @@ export function useWorkspace() {
         setToast(t("exported"));
       }
     });
+  const removePages = (ids = scanIds) => {
+    if (working || !ids.length) return;
+    void action(async () => {
+      const count = await invoke<number>("remove_pages", { pageIds: ids });
+      setToast(t("pagesRemoved", { count }));
+    });
+  };
   const selectPage = (
     p: Page,
     event: React.MouseEvent | React.KeyboardEvent,
@@ -235,6 +242,10 @@ export function useWorkspace() {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
       event.preventDefault();
       selectAll();
+    }
+    if (event.key === "Delete" && !working && scanIds.length) {
+      event.preventDefault();
+      removePages();
     }
     if (event.key === "Escape") {
       event.preventDefault();
@@ -435,6 +446,7 @@ export function useWorkspace() {
     setSelectedIds,
     selectPage,
     selectAll,
+    removePages,
     selectionKeys,
     query,
     setQuery,
