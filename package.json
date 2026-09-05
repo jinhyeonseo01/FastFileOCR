@@ -42,7 +42,7 @@
     "@types/react-dom": "19.2.5",
     "@vitejs/plugin-react": "6.1.1",
     "prettier": "3.9.6",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "vite": "^8.2.2"
   },
   "description": "Simple / Fast / Accurate — Rust OCR powered by PaddleOCR-VL 1.6",
