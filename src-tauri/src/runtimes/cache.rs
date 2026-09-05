@@ -54,7 +54,11 @@ fn digest(path: &Path, checkpoint: &impl Fn() -> Result<()>) -> Result<String> {
         }
         hash.update(&buffer[..n]);
     }
-    Ok(format!("{:x}", hash.finalize()))
+    Ok(hash
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>())
 }
 fn required(device: &str) -> Vec<String> {
     [

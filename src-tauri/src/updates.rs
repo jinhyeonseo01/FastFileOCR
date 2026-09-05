@@ -254,7 +254,14 @@ impl Updater {
         }
         file.sync_all().map_err(err)?;
         drop(file);
-        if received != release.bytes || format!("{:x}", hash.finalize()) != expected {
+        if received != release.bytes
+            || hash
+                .finalize()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+                != expected
+        {
             return Err(i18n::text("updateHashMismatch"));
         }
         if final_path.exists() {
@@ -290,7 +297,13 @@ impl Updater {
             }
             hash.update(&buffer[..n]);
         }
-        if format!("{:x}", hash.finalize()) != expected {
+        if hash
+            .finalize()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+            != expected
+        {
             return Err(i18n::text("updateHashMismatch"));
         }
         // Deliberately interactive: installation and data-retention choices stay visible.
