@@ -196,7 +196,12 @@ impl Downloads {
             }
             hash.update(&buffer[..n]);
         }
-        Ok(format!("{:x}", hash.finalize()) == model.sha256)
+        Ok(hash
+            .finalize()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+            == model.sha256)
     }
     pub(crate) fn stage(&self, status: &str, notify: &impl Fn(Progress)) {
         self.update(
@@ -516,7 +521,10 @@ mod tests {
         let spec = ModelFile {
             name: "engine.zip".into(),
             bytes: data.len() as u64,
-            sha256: format!("{:x}", Sha256::digest(data)),
+            sha256: Sha256::digest(data)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>(),
             url: Some(url),
             layout: false,
             repository: None,
