@@ -16,10 +16,10 @@ jobs:
       run:
         shell: pwsh
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -34,7 +34,7 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
       - name: Cache bundled CPU and document libraries
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .cache/bundle
           key: windows-cpu-assets-${{ hashFiles('scripts/build/resources.ps1', 'src-tauri/src/runtimes/manifest.json') }}
