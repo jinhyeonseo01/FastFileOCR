@@ -1144,7 +1144,7 @@ dependencies = [
 
 [[package]]
 name = "fastfileocr"
-version = "0.1.2"
+version = "0.1.4"
 dependencies = [
  "ammonia",
  "arboard",
