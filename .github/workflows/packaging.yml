@@ -50,7 +50,7 @@ jobs:
         run: npm run installer
       - name: Verify installed resources and data lifecycle
         run: npm run installer:test
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: packaging-logs
