@@ -20,7 +20,7 @@ uuid = { version = "1", features = ["v4"] }
 base64 = "0.23"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "bmp", "tiff"] }
-pdfium-render = "=0.9.3"
+pdfium-render = "=0.9.4"
 pulldown-cmark = "0.13"
 ammonia = "4"
 tempfile = "3"
