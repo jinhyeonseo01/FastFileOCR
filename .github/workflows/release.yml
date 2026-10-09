@@ -61,7 +61,7 @@ jobs:
       - name: Verify installed resources and data lifecycle
         run: npm run installer:test
       - name: Upload installer build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: FastFileOCR-${{ github.ref_name }}-windows-x64
           path: |
